@@ -196,13 +196,25 @@ class MobileApiTest extends TestCase
         $notifier = app(DiagramNotifier::class);
         $id = $this->diagram->id;
 
-        $notifier->activity($id, [['action' => 'MOVE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'movió']]);
-        $notifier->activity($id, [['action' => 'EDIT_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'editó']]);
+        // Salir y mover clases no avisan.
+        $notifier->activity($id, [['action' => 'SESSION_LEAVE', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'salió']]);
+        $notifier->activity($id, [['action' => 'MOVE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'movió A']]);
         Bus::assertNotDispatched(NotifyDiagramMembers::class);
 
-        $notifier->activity($id, [['action' => 'CREATE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'creó A']]);
-        $notifier->activity($id, [['action' => 'CREATE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'creó B']]);
+        // Una edición avisa; después, un minuto de silencio para esa persona.
+        $notifier->activity($id, [
+            ['action' => 'MOVE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'movió A'],
+            ['action' => 'EDIT_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'renombró A a B'],
+        ]);
+        $notifier->activity($id, [['action' => 'CREATE_CLASS', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'creó C']]);
         Bus::assertDispatchedTimes(NotifyDiagramMembers::class, 1);
+        Bus::assertDispatched(NotifyDiagramMembers::class, fn ($job) => $job->body === 'Juan renombró A a B');
+
+        // Lo de Juan no silencia a Ana, y entrar o guardar avisa siempre.
+        $notifier->activity($id, [['action' => 'DELETE_RELATION', 'actorId' => 'y', 'actorName' => 'Ana', 'summary' => 'borró una relación']]);
+        $notifier->activity($id, [['action' => 'SESSION_JOIN', 'actorId' => 'y', 'actorName' => 'Ana', 'summary' => 'entró al diagrama']]);
+        $notifier->activity($id, [['action' => 'SAVE', 'actorId' => 'x', 'actorName' => 'Juan', 'summary' => 'guardó el diagrama']]);
+        Bus::assertDispatchedTimes(NotifyDiagramMembers::class, 4);
     }
 
     public function test_recording_activity_triggers_the_notification(): void

@@ -1,7 +1,7 @@
 {{-- resources/views/diagrams/partials/diagram-grid.blade.php
      Grilla de tarjetas de diagrama, reutilizada por "Mis diagramas" y
      "Compartidos conmigo" — la única diferencia entre ambas secciones es
-     QUÉ paginator llega acá, no cómo se dibuja cada tarjeta. --}}
+     QUÉ paginator llega aquí, no cómo se dibuja cada tarjeta. --}}
 @if($diagrams->count() > 0)
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         @foreach($diagrams as $diagram)
@@ -108,7 +108,7 @@
                         @if($diagram->user_id === auth()->id())
                             <form method="POST" action="{{ route('diagrams.destroy', $diagram->id) }}"
                                   class="inline"
-                                  onsubmit="return confirm('¿Estás seguro de eliminar este diagrama?')">
+                                  onsubmit="event.preventDefault(); window.uiConfirm({ tone: 'danger', title: {{ \Illuminate\Support\Js::from('¿Eliminar «'.$diagram->title.'»?') }}, message: 'Deja de estar disponible para ti y para sus colaboradores. No se puede deshacer.', confirmLabel: 'Eliminar diagrama' }).then(ok => ok && this.submit())">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">
@@ -132,7 +132,7 @@
                 <x-icon name="chart" :size="28" />
             </div>
 
-            <h3 class="text-base font-medium text-gray-900 mb-1.5">{{ $emptyTitle ?? 'No tenés diagramas aún' }}</h3>
+            <h3 class="text-base font-medium text-gray-900 mb-1.5">{{ $emptyTitle ?? 'No tienes diagramas aún' }}</h3>
             <p class="text-sm text-gray-500 mb-6">{{ $emptyMessage ?? 'Comenzá creando tu primer diagrama de clases UML' }}</p>
 
             @if($emptyAction ?? true)

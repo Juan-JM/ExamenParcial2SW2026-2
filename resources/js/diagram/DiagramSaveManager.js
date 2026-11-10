@@ -6,6 +6,7 @@
 import * as joint from 'jointjs';
 import { DiagramElementFactory } from './DiagramElementFactory.js';
 import { icon } from './utils/uiIcons.js';
+import { confirmDialog } from './utils/modal.js';
 
 export class DiagramSaveManager {
     constructor(editor) {
@@ -285,7 +286,7 @@ export class DiagramSaveManager {
         }, 3000);
     }
 
-    /** El botón "Limpiar" ya confirma del lado de Livewire (`wire:confirm`, ver diagram-editor.blade.php) antes de que este método se llegue a llamar — no volver a confirmar acá, o queda un doble diálogo. */
+    /** El botón "Limpiar" ya confirma del lado de Livewire (window.uiConfirm antes de $wire.clearDiagram(), ver diagram-editor.blade.php) antes de que este método se llegue a llamar — no volver a confirmar acá, o queda un doble diálogo. */
     clearDiagram() {
         this.editor.graph.clear();
         this.editor.selectedElement = null;
@@ -338,10 +339,14 @@ export class DiagramSaveManager {
         };
     }
 
-    convertToLegacy() {
-        if (!confirm('¿Convertir elementos UML 2.5 a formato legacy?\n\nEsto eliminará las características avanzadas.')) {
-            return;
-        }
+    async convertToLegacy() {
+        const ok = await confirmDialog({
+            tone: 'warning',
+            title: '¿Convertir a formato legacy?',
+            message: 'Se pierden las características avanzadas de UML 2.5 (estereotipos, restricciones, atributos derivados).',
+            confirmLabel: 'Convertir',
+        });
+        if (!ok) return;
 
         const elements = this.editor.graph.getElements();
         let convertedCount = 0;

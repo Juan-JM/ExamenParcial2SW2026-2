@@ -8,7 +8,7 @@
 // detalle de qué cambió y por qué.
 
 import { checkNormalization } from './schemaNormalizationChecker.js';
-import { openModal } from './modal.js';
+import { openModal, alertDialog } from './modal.js';
 
 export class SimpleSQLGenerator {
     constructor(editor) {
@@ -58,7 +58,7 @@ export class SimpleSQLGenerator {
             this.finishGeneration(classes, relationships, []);
         } catch (error) {
             console.error('❌ Error en generación SQL:', error);
-            alert('Error al generar SQL: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo generar el SQL', message: error.message });
         }
     }
 

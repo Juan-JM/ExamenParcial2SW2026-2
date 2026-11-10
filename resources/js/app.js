@@ -8,8 +8,14 @@ import * as joint from 'jointjs';
 import { UMLDiagramEditor } from './diagram/editor.js';
 import { icon } from './diagram/utils/uiIcons.js';
 import { initSupportChat } from './support/supportChat.js';
+import { confirmDialog, alertDialog } from './diagram/utils/modal.js';
 
 window.joint = joint;
+
+// Diálogos propios en lugar de confirm()/alert() del navegador, también para
+// Blade y Livewire (onsubmit, @click). Ver diagram/utils/modal.js.
+window.uiConfirm = confirmDialog;
+window.uiAlert = alertDialog;
 
 // Inicialización cuando DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
@@ -104,13 +110,13 @@ function setupToolbar(editor) {
     var html = '<div class="uml-tools-panel">';
 
     html += '<div class="uml-tool-list">' +
-        '<button type="button" class="uml-tool-btn tool-btn' + isActive(SELECT_TOOL.id) + '" data-tool="' + SELECT_TOOL.id + '">' +
+        '<button type="button" class="uml-tool-btn tool-btn' + isActive(SELECT_TOOL.id) + '" data-tool="' + SELECT_TOOL.id + '" title="Seleccionar y mover (Esc vuelve a esta herramienta)">' +
         '<span class="uml-tool-icon">' + icon(SELECT_TOOL.icon) + '</span>' +
         '<span>' + SELECT_TOOL.label + '</span>' +
         '</button></div>';
 
-    html += '<div class="menu-divider"></div>';
-    html += '<div class="menu-section">Elementos</div>';
+    html += '<div class="uml-palette-section">';
+    html += '<div class="uml-palette-heading"><span>Elementos</span><span class="uml-palette-hint">Arrastra al lienzo</span></div>';
     html += '<div class="uml-shape-grid">';
     SHAPE_TOOLS.forEach(function(tool) {
         html += '<button type="button" class="uml-shape-btn' + isActive(tool.id) + '" data-tool="' + tool.id + '" draggable="true">' +
@@ -118,10 +124,10 @@ function setupToolbar(editor) {
             '<span>' + tool.label + '</span>' +
             '</button>';
     });
-    html += '</div>';
+    html += '</div></div>';
 
-    html += '<div class="menu-divider"></div>';
-    html += '<div class="menu-section">Relaciones</div>';
+    html += '<div class="uml-palette-section">';
+    html += '<div class="uml-palette-heading"><span>Relaciones</span><span class="uml-palette-hint">Origen → destino</span></div>';
     html += '<div class="uml-tool-list">';
     RELATION_TOOLS.forEach(function(tool) {
         html += '<button type="button" class="uml-tool-btn tool-btn' + isActive(tool.id) + '" data-tool="' + tool.id + '">' +
@@ -129,7 +135,8 @@ function setupToolbar(editor) {
             '<span>' + tool.label + '</span>' +
             '</button>';
     });
-    html += '</div>';
+    html += '</div></div>';
+
 
     html += '</div>';
 

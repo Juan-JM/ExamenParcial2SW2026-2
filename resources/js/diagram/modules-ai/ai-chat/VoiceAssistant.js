@@ -6,8 +6,12 @@
 
 const HANDS_FREE_KEY = 'agent-hands-free';
 const MUTED_KEY = 'agent-muted';
-const VOICE_KEY = 'agent-voice';
-const RATE_KEY = 'agent-voice-rate';
+const LISTEN_MODE_KEY = 'agent-listen-mode';
+
+/** Qué respuestas de la IA se leen en voz alta en este navegador. */
+export const LISTEN_MODES = ['all', 'mine', 'others', 'none'];
+/** Voz y velocidad son fijas (voz masculina de Google, ver pickDefaultVoice): no se eligen en la interfaz. */
+const SPEECH_RATE = 1;
 
 /** Tiempo para decir el pedido después de "Nova" a secas. */
 const COMMAND_WINDOW_MS = 8000;
@@ -69,12 +73,43 @@ export function splitForSpeech(text, maxChars = MAX_CHUNK_CHARS) {
     return chunks;
 }
 
-/** La mejor voz disponible: primero las "naturales" (neuronales), y masculinas. */
+/**
+ * La voz de TODAS las IAs (Nova y el Tutor): la masculina de Google en español
+ * ("Google español", es-ES, en Chrome). "Google español de Estados Unidos" es
+ * FEMENINA: no usarla. Si no está (Edge, Firefox), una voz natural y masculina.
+ */
+const PREFERRED_VOICES = [/^Google español$/i];
+
 export function pickDefaultVoice(voices) {
     const spanish = voices.filter((v) => v.lang?.toLowerCase().startsWith('es'));
-    const score = (v) => (/natural|online|neural/i.test(v.name) ? 2 : 0) + (MALE_VOICE_HINT.test(v.name) ? 1 : 0);
 
+    for (const pattern of PREFERRED_VOICES) {
+        const voice = spanish.find((v) => pattern.test(v.name));
+        if (voice) return voice;
+    }
+
+    const score = (v) => (/natural|online|neural/i.test(v.name) ? 2 : 0) + (MALE_VOICE_HINT.test(v.name) ? 1 : 0);
     return [...spanish].sort((a, b) => score(b) - score(a))[0] || null;
+}
+
+/**
+ * Chrome entrega la lista de voces un rato después de cargar la página. Si se
+ * habla antes, usa la voz por defecto del sistema (a veces femenina) y después
+ * cambia: por eso se espera la lista (como máximo 1,5 s) antes de hablar.
+ */
+export function whenVoicesReady() {
+    const synth = window.speechSynthesis;
+    if (!synth || synth.getVoices().length) return Promise.resolve();
+
+    return new Promise((resolve) => {
+        const done = () => {
+            synth.removeEventListener?.('voiceschanged', done);
+            clearTimeout(timer);
+            resolve();
+        };
+        const timer = setTimeout(done, 1500);
+        synth.addEventListener?.('voiceschanged', done);
+    });
 }
 
 export class VoiceAssistant {
@@ -93,9 +128,9 @@ export class VoiceAssistant {
         this.interim = '';
         this.restartDelay = 300;
         this.reportedErrors = new Set();
-        this.muted = readValue(MUTED_KEY) === '1';
-        this.rate = Number(readValue(RATE_KEY)) || 1;
-        this.voiceName = readValue(VOICE_KEY);
+        // El antiguo interruptor "agent-muted" equivale a "ninguna".
+        const storedMode = readValue(LISTEN_MODE_KEY);
+        this.listenMode = LISTEN_MODES.includes(storedMode) ? storedMode : (readValue(MUTED_KEY) === '1' ? 'none' : 'all');
         this.speechQueue = [];
         this.keepAliveTimer = null;
 
@@ -122,7 +157,15 @@ export class VoiceAssistant {
 
     isSupported() { return !!this.recognition; }
 
-    isMuted() { return this.muted; }
+    getListenMode() { return this.listenMode; }
+
+    /** ¿Se lee esta respuesta? `mine`: la pidió esta persona. */
+    shouldSpeakReply(mine) {
+        if (this.listenMode === 'all') return true;
+        if (this.listenMode === 'mine') return mine;
+        if (this.listenMode === 'others') return !mine;
+        return false;
+    }
 
     isHandsFreeOn() { return this.handsFree; }
 
@@ -311,29 +354,20 @@ export class VoiceAssistant {
     }
 
     currentVoice() {
-        const voices = this.voices();
-        return voices.find((v) => v.name === this.voiceName) || pickDefaultVoice(voices);
+        return pickDefaultVoice(this.voices());
     }
 
-    setVoice(name) {
-        this.voiceName = name;
-        writeValue(VOICE_KEY, name);
-    }
-
-    setRate(rate) {
-        this.rate = rate;
-        writeValue(RATE_KEY, String(rate));
-    }
-
-    toggleMuted() {
-        this.muted = !this.muted;
-        writeValue(MUTED_KEY, this.muted ? '1' : '0');
-        if (this.muted) this.cancelSpeech();
-        return this.muted;
+    setListenMode(mode) {
+        if (!LISTEN_MODES.includes(mode)) return this.listenMode;
+        this.listenMode = mode;
+        writeValue(LISTEN_MODE_KEY, mode);
+        // Lo que está sonando ya no se sabe de quién era: se corta y listo.
+        if (mode !== 'all') this.cancelSpeech();
+        return this.listenMode;
     }
 
     speak(text, { force = false } = {}) {
-        if ((this.muted && !force) || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+        if ((this.listenMode === 'none' && !force) || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
 
         this.cancelSpeech();
         this.speechQueue = splitForSpeech(text.slice(0, MAX_SPOKEN_CHARS));
@@ -353,7 +387,11 @@ export class VoiceAssistant {
             }
         }, 10000);
 
-        this.speakNext();
+        const queue = this.speechQueue;
+        whenVoicesReady().then(() => {
+            // Si mientras se esperaban las voces se canceló o empezó otra lectura, no se habla.
+            if (this.speechQueue === queue && this.speaking) this.speakNext();
+        });
     }
 
     speakNext() {
@@ -368,7 +406,7 @@ export class VoiceAssistant {
         const voice = this.currentVoice();
         utterance.lang = voice?.lang || 'es-ES';
         if (voice) utterance.voice = voice;
-        utterance.rate = this.rate;
+        utterance.rate = SPEECH_RATE;
 
         utterance.onend = () => this.speakNext();
         utterance.onerror = (event) => {

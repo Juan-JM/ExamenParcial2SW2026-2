@@ -2,6 +2,7 @@
 // Generador simple de proyectos Spring Boot desde diagramas UML
 
 import JSZip from 'jszip';
+import { alertDialog } from './modal.js';
 
 export class SimpleJavaGenerator {
     constructor(editor) {
@@ -25,7 +26,7 @@ export class SimpleJavaGenerator {
             this.relationships = this.extractRelationships();
 
             if (classes.length === 0) {
-                alert('⚠️ No hay clases en el diagrama para generar código.');
+                alertDialog({ tone: 'warning', title: 'No hay nada para generar', message: 'Agrega al menos una clase al diagrama para generar el proyecto Spring Boot.' });
                 return;
             }
 
@@ -38,7 +39,7 @@ export class SimpleJavaGenerator {
             console.log('✅ Proyecto Spring Boot generado exitosamente');
         } catch (error) {
             console.error('❌ Error generando proyecto Java:', error);
-            alert('Error al generar proyecto: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo generar el proyecto', message: error.message });
         }
     }
 

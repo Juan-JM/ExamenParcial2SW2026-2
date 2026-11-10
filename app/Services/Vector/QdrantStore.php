@@ -59,6 +59,14 @@ class QdrantStore
         ], $response['result'] ?? []);
     }
 
+    /** Borra todos los puntos de un tipo (por ejemplo, la guía de uso antes de reindexarla). */
+    public function deleteKind(string $kind): void
+    {
+        $this->request('post', "/collections/{$this->collection()}/points/delete?wait=true", [
+            'filter' => ['must' => [['key' => 'kind', 'match' => ['value' => $kind]]]],
+        ], allowMissingCollection: true);
+    }
+
     private function ensureCollection(int $dimension): void
     {
         if ($this->collectionReady) {

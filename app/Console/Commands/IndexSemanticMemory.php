@@ -28,6 +28,10 @@ class IndexSemanticMemory extends Command
             return self::FAILURE;
         }
 
+        // Se borra la guía vieja primero: si una sección cambió de título o se
+        // quitó, no debe seguir apareciendo en las búsquedas.
+        app(\App\Services\Vector\QdrantStore::class)->deleteKind(SemanticMemory::KIND_HELP);
+
         $sections = $this->helpSections();
         $memory->remember($sections);
         $this->line(count($sections).' secciones de la guía de uso');

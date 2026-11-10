@@ -4,9 +4,11 @@
 // Se guarda el ancho elegido en localStorage para que no se resetee cada
 // vez que se recarga la página.
 
-const MIN_WIDTH = 260;
-const MAX_WIDTH = 560;
-const STORAGE_KEY = 'uml-editor:sidebar-width';
+const MIN_WIDTH = 216;
+const MAX_WIDTH = 420;
+// Clave nueva: la paleta ahora tiene solo herramientas (el chat pasó al panel
+// derecho), así que el ancho viejo de 320px+ ya no tiene sentido como punto de partida.
+const STORAGE_KEY = 'uml-editor:palette-width';
 
 export class DiagramSidebarResize {
     constructor(editor) {

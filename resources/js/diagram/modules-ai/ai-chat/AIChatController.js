@@ -12,6 +12,7 @@ import { VoiceOrb } from './VoiceOrb.js';
 import { AICommandExecutor } from '../AICommandExecutor.js';
 import { EditorAIResponseParser } from '../EditorAIResponseParser.js';
 import { isUmlClassElement } from '../../DiagramElementFactory.js';
+import { confirmDialog } from '../../utils/modal.js';
 
 /** Si no llega respuesta en este tiempo, se avisa: lo más común es que la cola no esté corriendo. */
 const REPLY_TIMEOUT_MS = 180000;
@@ -24,6 +25,11 @@ const QUICK_COMMANDS = {
     normalize: 'Revisa si el modelo cumple primera, segunda y tercera forma normal. Dime qué clase incumple cada una y cómo corregirla. No cambies nada todavía.',
     summary: '¿Qué se avanzó en el diagrama y qué hizo cada integrante? Dame un resumen.',
 };
+
+const DOCK_VIEWS = ['chat', 'activity', 'versions'];
+const DOCK_STORAGE_KEY = 'uml-editor:dock-view';
+/** Desde este ancho de ventana entran inspector + panel del equipo sin ahogar el lienzo. */
+const INSPECTOR_SHARE_MIN_WIDTH = 1600;
 
 /** Errores con un mensaje en español ya pensado para mostrarse tal cual en el chat. */
 class UserFacingAiError extends Error {}
@@ -62,26 +68,126 @@ export class AIChatController {
         this.bootstrap();
     }
 
-    // ==================== PESTAÑAS DEL SIDEBAR ====================
+    // ==================== PANEL DEL EQUIPO (riel derecho) ====================
+    // La paleta de la izquierda queda solo para crear; Nova, Actividad y
+    // Versiones se abren en un panel a la derecha desde un riel siempre visible,
+    // así se puede chatear sin perder las herramientas.
 
     initializeTabs() {
-        this.toolsTabBtn = document.getElementById('sidebar-tab-tools');
-        this.aiTabBtn = document.getElementById('sidebar-tab-ai');
-        this.toolsPanel = document.getElementById('uml-tools-tab-panel');
+        this.dockEl = document.getElementById('editor-dock');
         this.aiPanel = document.getElementById('ai-chat-tab-panel');
+        this.railButtons = [...document.querySelectorAll('#editor-rail [data-dock]')];
+        this.unreadEl = document.getElementById('editor-rail-unread');
+        this.unread = 0;
+        this.dockView = null;
 
-        if (!this.toolsTabBtn || !this.aiTabBtn || !this.toolsPanel || !this.aiPanel) return;
+        if (!this.dockEl || !this.aiPanel) return;
 
-        this.toolsTabBtn.addEventListener('click', () => this.showTab('tools'));
-        this.aiTabBtn.addEventListener('click', () => this.showTab('ai'));
+        this.railButtons.forEach((btn) => {
+            btn.addEventListener('click', () => this.toggleDock(btn.dataset.dock));
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || !this.dockView) return;
+            if (!this.dockEl.contains(document.activeElement)) return;
+            this.closeDock();
+        });
+
+        this.watchInspector();
     }
 
+    /**
+     * El inspector (propiedades del elemento) y este panel comparten la derecha.
+     * Con poco ancho, abrir el inspector repliega el panel y cerrarlo lo devuelve:
+     * si no, el lienzo quedaba en una franja de 250px.
+     */
+    watchInspector() {
+        const inspector = document.getElementById('properties-right-panel');
+        if (!inspector) return;
+
+        this.dockSuspendedView = null;
+        new MutationObserver(() => {
+            const open = !inspector.classList.contains('is-collapsed');
+            if (open && this.dockView && window.innerWidth < INSPECTOR_SHARE_MIN_WIDTH) {
+                this.dockSuspendedView = this.dockView;
+                this.closeDock({ persist: false });
+            } else if (!open && this.dockSuspendedView) {
+                const view = this.dockSuspendedView;
+                this.dockSuspendedView = null;
+                if (!this.dockView) this.openDock(view, { persist: false, focus: false });
+            }
+        }).observe(inspector, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    /** Vista guardada al recargar; la primera vez se abre Nova si hay lugar. */
+    restoreDock() {
+        let stored;
+        try { stored = localStorage.getItem(DOCK_STORAGE_KEY); } catch { stored = null; }
+
+        if (stored === 'closed') return;
+        if (stored && DOCK_VIEWS.includes(stored)) {
+            this.openDock(stored, { persist: false, focus: false });
+        } else if (window.innerWidth >= 1280) {
+            this.openDock('chat', { persist: false, focus: false });
+        }
+    }
+
+    toggleDock(view) {
+        if (this.dockView === view) {
+            this.closeDock();
+        } else {
+            this.openDock(view);
+        }
+    }
+
+    openDock(view, { persist = true, focus = true } = {}) {
+        if (!this.dockEl || !DOCK_VIEWS.includes(view)) return;
+
+        if (persist) this.dockSuspendedView = null;
+        this.dockView = view;
+        this.dockEl.hidden = false;
+        this.panel?.showView(view);
+        this.panel?.setVisible(true, { focus });
+        this.railButtons.forEach((btn) => {
+            const active = btn.dataset.dock === view;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-pressed', String(active));
+        });
+        if (view === 'chat') this.setUnread(0);
+        if (persist) this.persistDock(view);
+        // El lienzo cambió de ancho: JointJS necesita recalcular el área visible.
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    closeDock({ persist = true } = {}) {
+        if (!this.dockEl) return;
+
+        if (persist) this.dockSuspendedView = null;
+        this.dockView = null;
+        this.dockEl.hidden = true;
+        this.panel?.setVisible(false);
+        this.railButtons.forEach((btn) => {
+            btn.classList.remove('is-active');
+            btn.setAttribute('aria-pressed', 'false');
+        });
+        if (persist) this.persistDock('closed');
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    persistDock(value) {
+        try { localStorage.setItem(DOCK_STORAGE_KEY, value); } catch { /* sin almacenamiento: no pasa nada */ }
+    }
+
+    setUnread(count) {
+        this.unread = count;
+        if (!this.unreadEl) return;
+        this.unreadEl.hidden = count === 0;
+        this.unreadEl.textContent = count > 9 ? '9+' : String(count);
+    }
+
+    /** Compatibilidad: otras partes (p. ej. el chequeo de normalización) piden "mostrar la IA". */
     showTab(tab) {
-        const isAi = tab === 'ai';
-        this.aiTabBtn?.classList.toggle('is-active', isAi);
-        this.toolsTabBtn?.classList.toggle('is-active', !isAi);
-        if (this.aiPanel) this.aiPanel.style.display = isAi ? 'flex' : 'none';
-        if (this.toolsPanel) this.toolsPanel.style.display = isAi ? 'none' : 'flex';
+        if (tab === 'ai') this.openDock('chat');
     }
 
     // ==================== INICIALIZACIÓN ====================
@@ -93,10 +199,7 @@ export class AIChatController {
             onSend: (text, toAgent) => this.handleUserCommand(text, 'text', null, toAgent),
             onVoiceToggle: () => this.voice.toggleManual(),
             onHandsFreeToggle: () => this.voice.toggleHandsFree(),
-            onMuteToggle: () => this.panel.setMuted(this.voice.toggleMuted()),
-            onVoiceSettingsOpen: () => this.refreshVoices(),
-            onVoiceSelect: (name) => this.voice.setVoice(name),
-            onVoiceRate: (rate) => this.voice.setRate(rate),
+            onListenModeChange: (mode) => this.panel.setListenMode(this.voice.setListenMode(mode)),
             onVoiceTest: () => this.voice.speak(`Hola, soy ${this.agent.name}. Así sueno al leer las respuestas del equipo.`, { force: true }),
             onSessionSelect: (id) => this.showSession(id),
             onSearch: (query) => this.search(query),
@@ -105,7 +208,10 @@ export class AIChatController {
             onSessionClose: () => this.closeSession(),
             onQuickCommand: (key) => this.handleUserCommand(QUICK_COMMANDS[key], 'text'),
             onOptionSelect: (messageId, value) => this.handleOptionSelect(messageId, value),
+            onDockClose: () => this.closeDock(),
+            onUnread: () => this.setUnread(this.unread + 1),
         });
+        this.restoreDock();
     }
 
     async bootstrap() {
@@ -128,7 +234,7 @@ export class AIChatController {
             this.canEdit = state.canEdit;
             this.voice.configure(state.agent);
             this.orb.setAgentName(state.agent.name);
-            this.panel?.setAgent(state.agent, this.voice.isSupported(), this.voice.isMuted(), this.voice.isHandsFreeOn());
+            this.panel?.setAgent(state.agent, this.voice.isSupported(), this.voice.getListenMode(), this.voice.isHandsFreeOn());
             this.activityTracker.setEnabled(state.canEdit);
 
             this.currentSessionId = state.currentSessionId;
@@ -141,16 +247,12 @@ export class AIChatController {
             if (greet && state.missedDigest) {
                 this.pushLocal(`Desde tu última visita:\n${state.missedDigest}`);
             } else if (state.messages.length === 0) {
-                this.pushLocal(`Sesión nueva: el chat empieza de cero. Soy ${state.agent.name}, un integrante más del equipo; todos ven esta conversación. Pedime cambios, revisiones o ideas; solo actúo cuando me lo piden.`);
+                this.pushLocal(`Sesión nueva: el chat empieza de cero. Soy ${state.agent.name}, un integrante más del equipo; todos ven esta conversación. Pídeme cambios, revisiones o ideas; solo actúo cuando me lo piden.`);
             }
         } catch (error) {
             console.error('AIChatController: no se pudo cargar la conversación', error);
-            this.pushLocal('No se pudo cargar la conversación del equipo. Recargá la página.');
+            this.pushLocal('No se pudo cargar la conversación del equipo. Recarga la página.');
         }
-    }
-
-    refreshVoices() {
-        this.panel?.setVoiceOptions(this.voice.voices(), this.voice.currentVoice()?.name, this.voice.rate);
     }
 
     /** Consultar una sesión anterior (solo lectura) o volver a la actual. */
@@ -174,7 +276,13 @@ export class AIChatController {
     }
 
     async closeSession() {
-        if (!window.confirm('¿Cerrar la sesión de trabajo para todos? Quienes sigan en el diagrama empezarán una sesión nueva con el chat vacío.')) return;
+        const ok = await confirmDialog({
+            tone: 'warning',
+            title: '¿Cerrar la sesión de trabajo para todos?',
+            message: 'Quienes sigan en el diagrama empezarán una sesión nueva con el chat vacío. Esta sesión queda para consultar en el selector.',
+            confirmLabel: 'Cerrar sesión',
+        });
+        if (!ok) return;
 
         try {
             await this.request(this.urls.closeSessionUrl, {});
@@ -188,7 +296,7 @@ export class AIChatController {
         this.voice.cancelSpeech();
         await this.beat();
         await this.loadState();
-        this.pushLocal(`${event.closedByName} cerró la sesión anterior. Podés consultarla en el selector de sesiones.`);
+        this.pushLocal(`${event.closedByName} cerró la sesión anterior. Puedes consultarla en el selector de sesiones.`);
     }
 
     /**
@@ -201,12 +309,12 @@ export class AIChatController {
         const selected = selectedId ? editor.graph.getCell(selectedId) : null;
         const className = selected?.get('umlData')?.className;
         const modalTitle = document.querySelector('.modal-overlay .modal-title, .modal-overlay h2, .modal-overlay h3')?.textContent?.trim();
-        const tab = document.querySelector('.sidebar-tab-btn.is-active')?.textContent?.trim();
-        const panelView = this.panel?.view;
+        // Qué panel lateral derecho tiene abierto (la paleta de la izquierda está siempre).
+        const dockNames = { chat: `${this.agent.name} (chat del equipo)`, activity: 'Actividad', versions: 'Versiones' };
 
         return {
             screen: 'editor',
-            sidebarTab: tab === 'Asistente IA' && panelView ? `Asistente IA / ${panelView}` : (tab || null),
+            sidebarTab: this.dockView ? dockNames[this.dockView] : null,
             tool: editor.selectedTool || null,
             selection: className ? `clase ${className}` : (selected?.isLink?.() ? 'una relación' : null),
             propertiesOpen: !!editor.propertiesPanel?.currentElement,
@@ -232,7 +340,13 @@ export class AIChatController {
     }
 
     async restoreVersion(version) {
-        if (!window.confirm(`¿Restaurar la versión del ${version.label}? La versión actual queda guardada y se puede volver a ella.`)) return;
+        const ok = await confirmDialog({
+            tone: 'warning',
+            title: `¿Restaurar la versión del ${version.label}?`,
+            message: 'El diagrama cambia para todos los que lo tienen abierto. La versión actual queda guardada y puedes volver a ella.',
+            confirmLabel: 'Restaurar',
+        });
+        if (!ok) return;
 
         try {
             await this.request(`${this.urls.versionsUrl}/${version.id}/restore`, {});
@@ -353,11 +467,17 @@ export class AIChatController {
         if (message.role !== 'assistant' || hasPendingOps || this.spoken.has(message.id)) return;
 
         const text = [message.text, message.opsSummary].filter(Boolean).join('. ');
+        if (!text) return;
 
-        if (text) {
-            this.spoken.add(message.id);
-            this.voice.speak(text);
-        }
+        this.spoken.add(message.id);
+        if (this.voice.shouldSpeakReply(this.isReplyToMe(message))) this.voice.speak(text);
+    }
+
+    /** La respuesta es para esta persona si contesta un mensaje suyo. */
+    isReplyToMe(message) {
+        if (message.executorUserId != null) return String(message.executorUserId) === String(this.userId);
+        const request = this.messages.get(message.replyTo);
+        return !!request && String(request.authorId) === String(this.userId);
     }
 
     trackAwaiting(messageId) {
@@ -365,7 +485,7 @@ export class AIChatController {
 
         this.awaitingReplies.set(messageId, setTimeout(() => {
             this.clearAwaiting(messageId);
-            this.pushLocal(`${this.agent.name} no respondió a tiempo. Revisá que la cola esté corriendo (composer run dev).`);
+            this.pushLocal(`${this.agent.name} no respondió a tiempo. Revisa que la cola esté corriendo (composer run dev).`);
         }, REPLY_TIMEOUT_MS));
 
         this.panel?.setTyping(true);
@@ -441,7 +561,7 @@ export class AIChatController {
         }
 
         console.error('AIChatController: error inesperado', error);
-        this.pushLocal('Hubo un error inesperado. Mirá la consola del navegador (F12) para el detalle técnico.');
+        this.pushLocal('Hubo un error inesperado. Mira la consola del navegador (F12) para el detalle técnico.');
     }
 
     async request(url, body = null) {
@@ -460,7 +580,7 @@ export class AIChatController {
             });
         } catch (networkError) {
             console.error('AIChatController: fallo de red', networkError);
-            throw new UserFacingAiError('No se pudo conectar con el servidor (revisá tu conexión).');
+            throw new UserFacingAiError('No se pudo conectar con el servidor (revisa tu conexión).');
         }
 
         let payload = null;
@@ -574,7 +694,7 @@ export class AIChatController {
             }
 
             if (result.status === 'ambiguous') {
-                const question = this.pushLocal(`Hay ${result.candidates.length} clases que coinciden con ese nombre. ¿A cuál te referís?`, {
+                const question = this.pushLocal(`Hay ${result.candidates.length} clases que coinciden con ese nombre. ¿A cuál te refieres?`, {
                     options: result.candidates.map((c) => ({ label: c.summary, value: c.id })),
                     pending: true,
                 });

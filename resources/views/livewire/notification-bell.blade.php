@@ -27,7 +27,7 @@
                     </div>
                 </div>
             @empty
-                <p style="padding: 14px; margin: 0; font-size: 13px; color: var(--uml-gray-500);">No tenés notificaciones nuevas.</p>
+                <p style="padding: 14px; margin: 0; font-size: 13px; color: var(--uml-gray-500);">No tienes notificaciones nuevas.</p>
             @endforelse
 
             <a href="{{ route('diagrams.index') }}#compartidos" class="menu-item" style="border-top: 1px solid var(--uml-gray-100); justify-content: center; color: var(--uml-gray-500);">

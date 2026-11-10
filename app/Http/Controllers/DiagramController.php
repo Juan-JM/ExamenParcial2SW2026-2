@@ -107,7 +107,7 @@ class DiagramController extends Controller
         // Verificar permisos
         if (!$diagram->canBeEditedBy(Auth::user())) {
             return redirect()->route('diagrams.index')
-                ->with('error', 'No tenés permisos para editar ese diagrama.');
+                ->with('error', 'No tienes permisos para editar ese diagrama.');
         }
 
         return view('diagrams.editor', compact('diagram'));
@@ -188,7 +188,7 @@ class DiagramController extends Controller
         // tener el editor abierto en otra pestaña recibía 403 igual.
         if ($diagram->visibility === 'private' && !$diagram->canBeAccessedBy(Auth::user())) {
             return redirect()->route('diagrams.index')
-                ->with('error', 'No tenés permisos para ver ese diagrama.');
+                ->with('error', 'No tienes permisos para ver ese diagrama.');
         }
 
         $user = Auth::user();
@@ -382,7 +382,7 @@ class DiagramController extends Controller
     public function stats(Diagram $diagram)
     {
         // Antes solo dejaba pasar al dueño exacto en un diagrama privado —
-        // un colaborador real (invitado, sesión activa) recibía un 403 acá,
+        // un colaborador real (invitado, sesión activa) recibía un 403 aquí,
         // lo cual devuelve HTML de error en vez de JSON y rompía el fetch()
         // que carga el título en el breadcrumb (quedaba en "Cargando..."
         // para siempre para cualquiera que no fuera el dueño).

@@ -2,6 +2,7 @@
 // Generador simple de colecciones Postman desde diagramas UML
 
 import { SimpleJavaGenerator } from './simpleJavaGenerator.js';
+import { alertDialog } from './modal.js';
 
 export class SimplePostmanGenerator {
     constructor(editor) {
@@ -28,7 +29,7 @@ export class SimplePostmanGenerator {
             this.javaGenerator.relationships = this.relationships;
 
             if (entities.length === 0) {
-                alert('⚠️ No hay clases en el diagrama para generar endpoints.');
+                alertDialog({ tone: 'warning', title: 'No hay nada para generar', message: 'Agrega al menos una clase al diagrama para generar la colección de Postman.' });
                 return;
             }
 
@@ -44,7 +45,7 @@ export class SimplePostmanGenerator {
             console.log('✅ Colección Postman generada exitosamente');
         } catch (error) {
             console.error('❌ Error generando colección Postman:', error);
-            alert('Error al generar colección: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo generar la colección', message: error.message });
         }
     }
 

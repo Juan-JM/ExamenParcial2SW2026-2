@@ -6,32 +6,46 @@ use App\Jobs\NotifyDiagramMembers;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Decide cuándo un cambio merece molestar en el celular. Avisa de los cambios
- * importantes y como máximo una vez por minuto por diagrama: arrastrar clases o
- * editar diez atributos seguidos no debe generar diez notificaciones.
+ * Decide cuándo algo del diagrama merece un aviso en el celular.
+ *
+ * - Hechos puntuales (alguien entra, guarda, importa, limpia, restaura o
+ *   renombra el diagrama): siempre avisan.
+ * - Ediciones (crear, borrar o editar clases y relaciones): como máximo
+ *   un aviso por minuto **por persona y diagrama**. Arrastrar clases o editar
+ *   diez atributos seguidos no genera diez avisos, pero lo que hace una
+ *   persona nunca silencia lo que hace otra.
  */
 class DiagramNotifier
 {
     private const THROTTLE_SECONDS = 60;
 
-    /** Las ediciones menores y los movimientos no notifican. */
-    private const NOTIFIABLE_ACTIONS = [
-        'CREATE_CLASS', 'DELETE_CLASS', 'RENAME_CLASS',
-        'CREATE_RELATION', 'DELETE_RELATION',
-        'IMPORT', 'CLEAR_DIAGRAM', 'SESSION_JOIN',
+    private const ALWAYS = [
+        'SESSION_JOIN', 'SAVE', 'IMPORT', 'CLEAR_DIAGRAM', 'RESTORE_VERSION', 'RENAME_DIAGRAM',
     ];
+
+    private const EDITS = [
+        'CREATE_CLASS', 'DELETE_CLASS', 'RENAME_CLASS', 'EDIT_CLASS',
+        'CREATE_RELATION', 'DELETE_RELATION', 'EDIT_RELATION',
+    ];
+    // Mover clases (MOVE_CLASS) no avisa: es reacomodar, no cambiar el modelo.
 
     /** @param  list<array<string, mixed>>  $entries */
     public function activity(string $diagramId, array $entries): void
     {
+        $edits = [];
+
         foreach ($entries as $entry) {
-            if (!in_array($entry['action'], self::NOTIFIABLE_ACTIONS, true)) {
-                continue;
+            if (in_array($entry['action'], self::ALWAYS, true)) {
+                $this->dispatch($diagramId, $entry);
+            } elseif (in_array($entry['action'], self::EDITS, true)) {
+                $edits[$entry['actorId'] ?? ''][] = $entry;
             }
+        }
 
-            $this->notify($diagramId, $entry['actorId'], "{$entry['actorName']} {$entry['summary']}");
-
-            return;
+        foreach ($edits as $actorId => $actorEdits) {
+            if (Cache::add("push_throttle:{$diagramId}:{$actorId}", true, self::THROTTLE_SECONDS)) {
+                $this->dispatch($diagramId, $actorEdits[0]);
+            }
         }
     }
 
@@ -43,10 +57,8 @@ class DiagramNotifier
         }
     }
 
-    private function notify(string $diagramId, ?string $actorId, string $body): void
+    private function dispatch(string $diagramId, array $entry): void
     {
-        if (Cache::add("push_throttle:{$diagramId}", true, self::THROTTLE_SECONDS)) {
-            NotifyDiagramMembers::dispatch($diagramId, $actorId, $body);
-        }
+        NotifyDiagramMembers::dispatch($diagramId, $entry['actorId'] ?? null, "{$entry['actorName']} {$entry['summary']}");
     }
 }

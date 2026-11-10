@@ -6,20 +6,33 @@
      que hacía que Livewire tratara el <link> como la raíz "real" del componente
      y dejara este <div> completo fuera de cualquier actualización reactiva. --}}
 <div class="h-full flex flex-col bg-gray-50">
-    <!-- Header/Toolbar - SOLO funciones de Livewire -->
-    <div class="bg-white border-b border-gray-200 px-4 py-2.5">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-3">
+    {{-- ============ BARRA SUPERIOR (única) ============
+         Tres zonas, de izquierda a derecha:
+         1. Dónde estoy: volver, título editable y estado de guardado.
+         2. Edición del lienzo: deshacer, rehacer, limpiar.
+         3. El diagrama hacia afuera: quién está, compartir, importar/exportar,
+            guardar (acción primaria) y la cuenta. --}}
+    <header class="editor-topbar">
+        <div class="editor-topbar-zone editor-topbar-start">
+            <a href="{{ route('diagrams.index') }}" id="support-target-dashboard" class="topbar-back" title="Volver a Mis Diagramas">
+                <x-icon name="arrow-left" :size="16" />
+                <span>Mis Diagramas</span>
+            </a>
+
+            <span class="topbar-sep" aria-hidden="true"></span>
+
+            <div class="topbar-title-block">
                 @if (!$diagram || $diagram->canBeEditedBy(auth()->user()))
-                    {{-- Clic para renombrar — antes esto era editable, se perdió en el
-                         rediseño del header (quedó como <h1> estático) y updateTitle()
-                         en el componente seguía existiendo sin nada que la disparara. --}}
-                    <div x-data="{ editing: false }">
+                    {{-- Clic para renombrar (updateTitle en el componente). --}}
+                    <div x-data="{ editing: false }" class="min-w-0">
                         <h1
                             x-show="!editing"
                             @click="editing = true; $nextTick(() => $refs.titleInput.focus())"
-                            class="text-base font-semibold text-gray-900 cursor-text rounded px-1.5 py-0.5 -mx-1.5 hover:bg-gray-100"
+                            class="topbar-title is-editable"
                             title="Clic para renombrar"
+                            role="button"
+                            id="support-target-rename"
+                            aria-label="Renombrar diagrama: {{ $diagramTitle }}"
                         >{{ $diagramTitle }}</h1>
                         <input
                             x-show="editing"
@@ -30,170 +43,223 @@
                             @keydown.enter.prevent="editing = false; window.currentDiagramTitle = $wire.diagramTitle; $wire.updateTitle()"
                             @keydown.escape.prevent="editing = false; $wire.diagramTitle = @js($diagramTitle)"
                             maxlength="255"
-                            class="text-base font-semibold text-gray-900 rounded px-1.5 py-0.5 -mx-1.5 border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            class="topbar-title-input"
                         >
                     </div>
                 @else
-                    <h1 class="text-base font-semibold text-gray-900">{{ $diagramTitle }}</h1>
+                    <h1 class="topbar-title">{{ $diagramTitle }}</h1>
+                    <span class="topbar-badge" title="Tu rol en este diagrama solo permite verlo">Solo lectura</span>
                 @endif
-            </div>
 
-            <div class="flex items-center gap-3">
-                {{-- Presencia en vivo: la puebla JS a partir de los eventos
-                     de presencia del canal (join/leave), no un timer — así
-                     un colaborador se hace visible para los demás EN EL
-                     INSTANTE en que abre el diagrama, y desaparece en el
-                     instante en que lo cierra, sin pedidos de más entre
-                     medio. Ver DiagramWebSocketManager (channel.here/
-                     joining/leaving) y DiagramCollaborationManager
-                     (updateCollaboratorsUI). --}}
-                <div id="collaborators-bar" class="collaborators-bar" style="display: none;">
-                    <div id="collaborators-list"></div>
-                </div>
-
-                <div class="h-5 w-px bg-gray-200" id="collaborators-divider" style="display: none;"></div>
-
-                <div class="flex items-center space-x-2">
-                    {{-- Deshacer/rehacer por usuario (undo/DiagramUndoManager.js):
-                         wire:ignore para que Livewire no le pise el estado
-                         habilitado/deshabilitado que maneja JS. --}}
-                    <div wire:ignore class="flex items-center gap-1">
-                        <button id="undoBtn" type="button" class="btn btn-secondary btn-sm" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
-                            <x-icon name="undo" :size="14" />
-                        </button>
-                        <button id="redoBtn" type="button" class="btn btn-secondary btn-sm" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>
-                            <x-icon name="redo" :size="14" />
-                        </button>
-                    </div>
-                    <button id="support-target-save" onclick="saveFromButton()" class="btn btn-primary btn-sm">
-                        <x-icon name="save" :size="14" /> Guardar
-                    </button>
-                    <button
-                        wire:click="clearDiagram"
-                        wire:confirm="¿Estás seguro de limpiar todo el diagrama?"
-                        class="btn btn-danger btn-sm">
-                        <x-icon name="trash" :size="14" /> Limpiar
-                    </button>
-
-                    {{-- Dropdown de Importación --}}
-                    <div class="relative" x-data="{ open: false }">
-                        <button
-                            @click="open = !open"
-                            @click.outside="open = false"
-                            class="btn btn-secondary btn-sm">
-                            <x-icon name="folder" :size="14" /> Importar
-                            <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-
-                        {{-- Menú desplegable --}}
-                        <div
-                            x-show="open"
-                            x-transition:enter="transition ease-out duration-150"
-                            x-transition:enter-start="opacity-0 scale-95"
-                            x-transition:enter-end="opacity-100 scale-100"
-                            x-transition:leave="transition ease-in duration-100"
-                            x-transition:leave-start="opacity-100 scale-100"
-                            x-transition:leave-end="opacity-0 scale-95"
-                            class="absolute top-full left-0 mt-2 w-64 menu z-50"
-                            style="display: none;">
-
-                            {{-- Importación desde archivos --}}
-                            <div class="menu-section">Desde archivo</div>
-
-                            <button id="import-xmi-btn" @click="open = false" class="menu-item">
-                                <x-icon name="document" :size="16" class="menu-item-icon" />
-                                Importar XML/XMI
-                                <span class="menu-item-tag">UML 2.5</span>
-                            </button>
-
-                            <div class="menu-divider"></div>
-
-                            {{-- Importación con IA --}}
-                            <div class="menu-section">Desde imagen (IA)</div>
-
-                            <button id="import-image-btn" @click="open = false" class="menu-item">
-                                <x-icon name="image" :size="16" class="menu-item-icon" />
-                                Analizar imagen
-                                <span class="menu-item-tag">IA</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- Dropdown de Exportación --}}
-                    <div class="relative" x-data="{ open: false }">
-                        <button
-                            id="support-target-export"
-                            @click="open = !open"
-                            @click.outside="open = false"
-                            class="btn btn-secondary btn-sm">
-                            <x-icon name="document" :size="14" /> Exportar
-                            <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-
-                        {{-- Menú desplegable --}}
-                        <div
-                            x-show="open"
-                            x-transition:enter="transition ease-out duration-200"
-                            x-transition:enter-start="opacity-0 scale-95"
-                            x-transition:enter-end="opacity-100 scale-100"
-                            x-transition:leave="transition ease-in duration-150"
-                            x-transition:leave-start="opacity-100 scale-100"
-                            x-transition:leave-end="opacity-0 scale-95"
-                            class="absolute top-full right-0 mt-2 w-60 menu z-50"
-                            style="display: none;">
-
-                            {{-- Exportación de imágenes --}}
-                            <div class="menu-section">Imágenes</div>
-
-                            <button id="export-png-btn" @click="open = false" class="menu-item">
-                                <x-icon name="image" :size="16" class="menu-item-icon" />
-                                Exportar PNG
-                            </button>
-
-                            <button id="export-jpg-btn" @click="open = false" class="menu-item">
-                                <x-icon name="image" :size="16" class="menu-item-icon" />
-                                Exportar JPG
-                            </button>
-
-                            <div class="menu-divider"></div>
-
-                            {{-- Otros formatos --}}
-                            <div class="menu-section">Otros formatos</div>
-                            <button id="export-xmi-btn" @click="open = false" class="menu-item">
-                                <x-icon name="document" :size="16" class="menu-item-icon" />
-                                Exportar XMI
-                                <span class="menu-item-tag">UML 2.5</span>
-                            </button>
-
-                            <button id="generate-sql-btn" @click="open = false" class="menu-item">
-                                <x-icon name="database" :size="16" class="menu-item-icon" />
-                                Generar SQL
-                                <span class="menu-item-tag">PostgreSQL</span>
-                            </button>
-
-                            <div class="menu-divider"></div>
-                            <div class="menu-section">Backend</div>
-                            <button id="generate-java-btn" @click="open = false" class="menu-item">
-                                <x-icon name="code" :size="16" class="menu-item-icon" />
-                                Generar Java
-                                <span class="menu-item-tag">Spring Boot</span>
-                            </button>
-
-                            <button id="generate-postman-btn" @click="open = false" class="menu-item">
-                                <x-icon name="send" :size="16" class="menu-item-icon" />
-                                Generar Postman
-                                <span class="menu-item-tag">API Collection</span>
-                            </button>
-                        </div>
-                    </div>
+                {{-- Estado de guardado: lo actualiza AutoSaveManager (diagrams/editor.blade.php)
+                     tocando #save-indicator / #save-text; wire:ignore para que un morph no lo pise. --}}
+                <div wire:ignore>
+                    <span id="save-status" class="topbar-save-status" title="El diagrama se guarda solo poco después de cada cambio">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full" id="save-indicator"></span>
+                        <span id="save-text">Guardado</span>
+                    </span>
                 </div>
             </div>
         </div>
-    </div>
+
+        <div class="editor-topbar-zone editor-topbar-center" role="toolbar" aria-label="Edición del lienzo">
+            <div class="topbar-segment">
+                {{-- Deshacer/rehacer por usuario (undo/DiagramUndoManager.js):
+                     wire:ignore para que Livewire no le pise el estado
+                     habilitado/deshabilitado que maneja JS. --}}
+                <div wire:ignore class="flex items-center">
+                    <button id="undoBtn" type="button" class="topbar-icon-btn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
+                        <x-icon name="undo" :size="16" />
+                    </button>
+                    <button id="redoBtn" type="button" class="topbar-icon-btn" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>
+                        <x-icon name="redo" :size="16" />
+                    </button>
+                </div>
+                <span class="topbar-segment-sep" aria-hidden="true"></span>
+                <button
+                    type="button"
+                    {{-- Confirmación con el diálogo propio (window.uiConfirm), no wire:confirm, que usa el confirm() del navegador --}}
+                    x-data
+                    @click="window.uiConfirm({ tone: 'danger', title: '¿Limpiar toda la pizarra?', message: 'Se borran todas las clases y relaciones, para todos los que tienen el diagrama abierto. Puedes recuperarlas con Deshacer (Ctrl+Z).', confirmLabel: 'Limpiar pizarra' }).then(ok => ok && $wire.clearDiagram())"
+                    class="topbar-icon-btn is-danger"
+                    title="Limpiar pizarra (borra todas las clases y relaciones)"
+                    aria-label="Limpiar pizarra">
+                    <x-icon name="trash" :size="16" />
+                </button>
+            </div>
+        </div>
+
+        <div class="editor-topbar-zone editor-topbar-end">
+            {{-- Presencia en vivo: la puebla JS a partir de los eventos
+                 de presencia del canal (join/leave), no un timer. Ver
+                 DiagramWebSocketManager (channel.here/joining/leaving) y
+                 DiagramCollaborationManager (updateCollaboratorsUI). --}}
+            <div wire:ignore class="flex items-center gap-3">
+                <div id="collaborators-bar" class="collaborators-bar" style="display: none;" title="Personas con el diagrama abierto ahora">
+                    <div id="collaborators-list"></div>
+                </div>
+                <span class="topbar-sep" id="collaborators-divider" style="display: none;" aria-hidden="true"></span>
+            </div>
+
+            @if($diagram && $diagram->user_id === auth()->id())
+                <button
+                    type="button"
+                    id="support-target-share"
+                    onclick="window.Livewire.dispatch('open-share-modal')"
+                    class="btn btn-secondary btn-sm">
+                    <x-icon name="users" :size="14" /> Compartir
+                </button>
+            @endif
+
+            {{-- Archivo: importar y exportar van juntos, como un grupo segmentado --}}
+            <div class="topbar-button-group">
+                {{-- Dropdown de Importación --}}
+                <div class="relative" x-data="{ open: false }">
+                    <button
+                        type="button"
+                        @click="open = !open"
+                        @click.outside="open = false"
+                        :aria-expanded="open"
+                        class="topbar-group-btn">
+                        <x-icon name="folder" :size="14" /> Importar
+                        <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    <div
+                        x-show="open"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="absolute top-full right-0 mt-2 w-64 menu z-50"
+                        style="display: none;">
+
+                        <div class="menu-section">Desde archivo</div>
+
+                        <button id="import-xmi-btn" @click="open = false" class="menu-item">
+                            <x-icon name="document" :size="16" class="menu-item-icon" />
+                            Importar XML/XMI
+                            <span class="menu-item-tag">UML 2.5</span>
+                        </button>
+
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-section">Desde imagen (IA)</div>
+
+                        <button id="import-image-btn" @click="open = false" class="menu-item">
+                            <x-icon name="image" :size="16" class="menu-item-icon" />
+                            Analizar imagen
+                            <span class="menu-item-tag">IA</span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Dropdown de Exportación --}}
+                <div class="relative" x-data="{ open: false }">
+                    <button
+                        type="button"
+                        id="support-target-export"
+                        @click="open = !open"
+                        @click.outside="open = false"
+                        :aria-expanded="open"
+                        class="topbar-group-btn">
+                        <x-icon name="document" :size="14" /> Exportar
+                        <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    <div
+                        x-show="open"
+                        x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0 scale-95"
+                        x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-150"
+                        x-transition:leave-start="opacity-100 scale-100"
+                        x-transition:leave-end="opacity-0 scale-95"
+                        class="absolute top-full right-0 mt-2 w-60 menu z-50"
+                        style="display: none;">
+
+                        <div class="menu-section">Imágenes</div>
+
+                        <button id="export-png-btn" @click="open = false" class="menu-item">
+                            <x-icon name="image" :size="16" class="menu-item-icon" />
+                            Exportar PNG
+                        </button>
+
+                        <button id="export-jpg-btn" @click="open = false" class="menu-item">
+                            <x-icon name="image" :size="16" class="menu-item-icon" />
+                            Exportar JPG
+                        </button>
+
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-section">Otros formatos</div>
+                        <button id="export-xmi-btn" @click="open = false" class="menu-item">
+                            <x-icon name="document" :size="16" class="menu-item-icon" />
+                            Exportar XMI
+                            <span class="menu-item-tag">UML 2.5</span>
+                        </button>
+
+                        <button id="generate-sql-btn" @click="open = false" class="menu-item">
+                            <x-icon name="database" :size="16" class="menu-item-icon" />
+                            Generar SQL
+                            <span class="menu-item-tag">PostgreSQL</span>
+                        </button>
+
+                        <div class="menu-divider"></div>
+                        <div class="menu-section">Backend</div>
+                        <button id="generate-java-btn" @click="open = false" class="menu-item">
+                            <x-icon name="code" :size="16" class="menu-item-icon" />
+                            Generar Java
+                            <span class="menu-item-tag">Spring Boot</span>
+                        </button>
+
+                        <button id="generate-postman-btn" @click="open = false" class="menu-item">
+                            <x-icon name="send" :size="16" class="menu-item-icon" />
+                            Generar Postman
+                            <span class="menu-item-tag">API Collection</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="support-target-save" type="button" onclick="saveFromButton()" class="btn btn-primary btn-sm" title="Guardar ahora (Ctrl+S) — igual se guarda solo">
+                <x-icon name="save" :size="14" /> Guardar
+            </button>
+
+            <span class="topbar-sep" aria-hidden="true"></span>
+
+            {{-- Cuenta --}}
+            <x-dropdown align="right" width="48">
+                <x-slot name="trigger">
+                    <button type="button" class="topbar-account" title="{{ Auth::user()->name }}">
+                        <span class="topbar-account-avatar">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</span>
+                        <span class="topbar-account-name">{{ Auth::user()->name }}</span>
+                        <x-icon name="chevron-down" :size="14" />
+                    </button>
+                </x-slot>
+
+                <x-slot name="content">
+                    <x-dropdown-link :href="route('profile.edit')">
+                        {{ __('Perfil') }}
+                    </x-dropdown-link>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <x-dropdown-link :href="route('logout')"
+                                onclick="event.preventDefault(); this.closest('form').submit();">
+                            {{ __('Cerrar sesión') }}
+                        </x-dropdown-link>
+                    </form>
+                </x-slot>
+            </x-dropdown>
+        </div>
+    </header>
 
     {{-- wire:ignore: JointJS y app.js mutan este árbol directamente (el canvas,
          el toolbar generado por JS, los overlays de estado). Si Livewire intenta
@@ -201,47 +267,38 @@
          de TODO el componente deja de aplicarse (incluida esta misma barra
          superior) — por eso el modal "Compartir" no se actualizaba. --}}
     <div class="flex flex-1 overflow-hidden" wire:ignore>
-        <!-- Sidebar: dos pestañas, mismo ancho - "Herramientas UML" (toolbar generado por JS) y "Asistente IA" (chat, ver AIChatPanel.js).
-             Ancho ajustable con límites (ver #sidebar-resize-handle / DiagramSidebarResize en editor.js) — arranca en 320px (antes 256px fijo). -->
-        <div id="editor-sidebar" class="bg-white border-r border-gray-200 flex flex-col relative flex-shrink-0" style="width: 320px;">
-            <div class="flex border-b border-gray-200 flex-shrink-0" id="sidebar-tabs">
-                <button type="button" class="sidebar-tab-btn is-active" id="sidebar-tab-tools" data-tab="tools">
-                    Herramientas UML
-                </button>
-                <button type="button" class="sidebar-tab-btn" id="sidebar-tab-ai" data-tab="ai">
-                    Asistente IA
-                </button>
+        {{-- ============ IZQUIERDA: PALETA (solo crear) ============
+             Clase/Interfaz se arrastran al lienzo; las relaciones se eligen y
+             se hacen dos clics (origen → destino). La arma app.js (setupToolbar).
+             Ancho ajustable (DiagramSidebarResize.js). --}}
+        <aside id="editor-sidebar" class="editor-palette" style="width: 248px;" aria-label="Paleta de herramientas UML">
+            <div class="editor-palette-header">
+                <span class="editor-palette-title">Herramientas UML</span>
             </div>
 
             <div id="uml-tools-tab-panel" class="flex-1 flex flex-col overflow-hidden">
                 {{-- Container para toolbar generado por JavaScript --}}
                 <div id="js-toolbar" class="flex-1 overflow-y-auto">
-                    {{-- El JavaScript creará los botones aquí --}}
                     <div class="p-4 text-center text-gray-400 text-sm" id="loading-toolbar">
                         <div class="animate-pulse">Cargando herramientas...</div>
                     </div>
                 </div>
             </div>
 
-            {{-- Contenido armado por AIChatPanel.js (burbujas, input, voz) --}}
-            <div id="ai-chat-tab-panel" class="flex-1 flex flex-col overflow-hidden" style="display: none;"></div>
-
-            {{-- Agarradera para redimensionar el ancho del sidebar (min/max
-                 en JS, ver DiagramSidebarResize en editor.js) --}}
+            {{-- Agarradera para redimensionar el ancho de la paleta --}}
             <div id="sidebar-resize-handle" class="sidebar-resize-handle" title="Arrastrar para cambiar el ancho"></div>
-        </div>
+        </aside>
 
-        <!-- Columna central: canvas + panel de atributos/métodos abajo -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        {{-- ============ CENTRO: LIENZO + atributos/métodos abajo ============ --}}
+        <div class="flex-1 flex flex-col overflow-hidden min-w-0">
             <div class="flex-1 relative overflow-hidden">
                 <div
                     id="paper-container"
                     class="w-full h-full bg-gray-50 relative">
                     {{-- JointJS se renderiza aquí — el propio JointJS reemplaza el
                          contenido de este div al inicializar el Paper, así que
-                         ningún overlay puede vivir DENTRO de él (se pierde apenas
-                         el editor arranca). Los overlays van afuera, como
-                         hermanos, sobre el mismo contenedor position:relative. --}}
+                         ningún overlay puede vivir DENTRO de él. Los overlays van
+                         afuera, como hermanos, sobre el mismo contenedor relative. --}}
                 </div>
 
                 {{-- Overlay de estado: medidor de latencia y conexión de red --}}
@@ -258,13 +315,13 @@
                 {{-- Zoom + info del diagrama, agrupados en un popup flotante abajo a la izquierda --}}
                 <div class="canvas-info-popup">
                     <div class="zoom-controls">
-                        <button id="zoom-in" class="zoom-btn" title="Acercar (Scroll)">
+                        <button id="zoom-in" class="zoom-btn" title="Acercar (Ctrl +)">
                             <x-icon name="zoom-in" :size="16" />
                         </button>
-                        <button id="zoom-out" class="zoom-btn" title="Alejar (Scroll)">
+                        <button id="zoom-out" class="zoom-btn" title="Alejar (Ctrl −)">
                             <x-icon name="zoom-out" :size="16" />
                         </button>
-                        <button id="zoom-fit" class="zoom-btn" title="Ajustar al contenido">
+                        <button id="zoom-fit" class="zoom-btn" title="Ajustar al contenido (Ctrl+9)">
                             <x-icon name="frame" :size="16" />
                         </button>
                     </div>
@@ -274,11 +331,7 @@
                     </span>
                 </div>
 
-                {{-- Loading overlay — SOLO para "Limpiar" (única acción
-                     realmente destructiva/lenta acá). Sin wire:target, este
-                     overlay aparecía con CUALQUIER request del componente,
-                     incluido el wire:poll de la barra de colaboradores — de
-                     ahí el parpadeo de "Procesando..." cada 7 segundos. --}}
+                {{-- Loading overlay — SOLO para "Limpiar" (wire:target). --}}
                 <div
                     wire:loading
                     wire:target="clearDiagram"
@@ -294,24 +347,55 @@
 
             {{-- Panel inferior: atributos y métodos de la clase/interfaz seleccionada --}}
             <div id="properties-bottom-panel" class="properties-panel properties-panel-bottom is-collapsed">
-                <button type="button" id="bottom-panel-toggle" class="properties-panel-toggle-bottom" title="Mostrar/ocultar panel">
+                <button type="button" id="bottom-panel-toggle" class="properties-panel-toggle-bottom" title="Mostrar/ocultar atributos y métodos">
                     <x-icon name="chevron-down" :size="14" />
                 </button>
                 <div class="properties-panel-bottom-content" id="properties-bottom-content">
-                    <div class="properties-panel-empty">Seleccioná una clase o interfaz para ver sus atributos y métodos.</div>
+                    <div class="properties-panel-empty">Haz doble clic en una clase o interfaz para ver sus atributos y métodos.</div>
                 </div>
             </div>
         </div>
 
-        {{-- Panel derecho: información del elemento seleccionado --}}
+        {{-- ============ DERECHA 1: INSPECTOR del elemento seleccionado ============ --}}
         <div id="properties-right-panel" class="properties-panel properties-panel-right is-collapsed">
-            <button type="button" id="right-panel-toggle" class="properties-panel-toggle-right" title="Mostrar/ocultar panel">
+            <button type="button" id="right-panel-toggle" class="properties-panel-toggle-right" title="Mostrar/ocultar propiedades">
                 <x-icon name="chevron-down" :size="14" />
             </button>
             <div class="properties-panel-right-content" id="properties-right-content">
-                <div class="properties-panel-empty">Seleccioná un elemento del diagrama para ver su información.</div>
+                <div class="properties-panel-empty">Haz doble clic en un elemento del diagrama para ver sus propiedades.</div>
             </div>
         </div>
+
+        {{-- ============ DERECHA 2: PANEL DEL EQUIPO (Nova, Actividad, Versiones) ============
+             Se abre desde el riel. El contenido lo arma AIChatPanel.js y la
+             apertura/cierre la maneja AIChatController (openDock/closeDock). --}}
+        <aside id="editor-dock" class="editor-dock" hidden aria-label="Panel del equipo">
+            <div id="ai-chat-tab-panel" class="editor-dock-inner"></div>
+        </aside>
+
+        {{-- Riel: siempre visible, abre/cierra el panel del equipo.
+             #sidebar-tab-ai se conserva como id del botón de Nova (lo usa el Tutor). --}}
+        <nav id="editor-rail" class="editor-rail" aria-label="Equipo">
+            <button type="button" class="editor-rail-btn" id="sidebar-tab-ai" data-dock="chat" aria-pressed="false" title="Nova: conversación del equipo con la IA">
+                <span class="editor-rail-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.9L12 15l-1.8-4.1L6 9l4.2-1.4L12 3z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7L19 15z"/></svg>
+                    <span class="editor-rail-badge" id="editor-rail-unread" hidden></span>
+                </span>
+                <span class="editor-rail-label" id="editor-rail-agent-name">Nova</span>
+            </button>
+            <button type="button" class="editor-rail-btn" id="dock-tab-activity" data-dock="activity" aria-pressed="false" title="Actividad: quién cambió qué, con búsqueda">
+                <span class="editor-rail-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+                </span>
+                <span class="editor-rail-label">Actividad</span>
+            </button>
+            <button type="button" class="editor-rail-btn" id="dock-tab-versions" data-dock="versions" aria-pressed="false" title="Versiones guardadas del diagrama">
+                <span class="editor-rail-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+                </span>
+                <span class="editor-rail-label">Versiones</span>
+            </button>
+        </nav>
     </div>
 
     {{-- Modal "Compartir": invitar colaboradores --}}
@@ -393,8 +477,8 @@
                                         </label>
                                         <button
                                             type="button"
-                                            wire:click="removeCollaborator('{{ $collaborator->id }}')"
-                                            wire:confirm="¿Quitar a {{ $collaborator->display_name }} de este diagrama?"
+                                            x-data
+                                            @click="window.uiConfirm({ tone: 'danger', title: @js('¿Quitar a '.$collaborator->display_name.' de este diagrama?'), message: 'Pierde el acceso al instante; si lo tiene abierto, se le cierra.', confirmLabel: 'Quitar' }).then(ok => ok && $wire.removeCollaborator(@js((string) $collaborator->id)))"
                                             class="icon-btn"
                                             title="Quitar colaborador">
                                             <x-icon name="close" :size="14" />
@@ -476,11 +560,11 @@
                 window.DiagramEditor.instance.saveDiagram();
             } else {
                 console.error('❌ Editor no disponible');
-                alert('Editor no está listo');
+                window.uiAlert?.({ tone: 'warning', title: 'El editor todavía está cargando', message: 'Espera un momento y vuelve a intentar.' });
             }
         }
 
-        // El botón "Limpiar" (wire:click="clearDiagram" + wire:confirm, ver
+        // El botón "Limpiar" ($wire.clearDiagram() tras window.uiConfirm, ver
         // arriba en este mismo archivo) solo limpia el $diagramData del LADO
         // DEL SERVIDOR y dispara este evento — nada escuchaba 'clear-diagram'
         // del lado del cliente, así que el lienzo (el grafo real de JointJS)

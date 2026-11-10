@@ -5,7 +5,7 @@ import * as joint from 'jointjs';
 import { DiagramSaveManager } from './DiagramSaveManager.js';
 import { DiagramZoomManager } from './DiagramZoomManager.js';
 import { DiagramClassManager } from './DiagramClassManager.js';
-import { DiagramPropertiesPanel } from './DiagramPropertiesPanel.js';
+import { DiagramPropertiesPanel, describeElement } from './DiagramPropertiesPanel.js';
 import { DiagramRelationshipManager } from './DiagramRelationshipManager.js';
 import { DiagramWebSocketManager } from './DiagramWebSocketManager.js';
 import { DiagramCollaborationManager } from './DiagramCollaborationManager.js';
@@ -20,7 +20,7 @@ import { SimplePostmanGenerator } from './utils/simplePostmanGenerator.js';
 import { AIChatController } from './modules-ai/ai-chat/AIChatController.js';
 import { DiagramUndoManager } from './undo/DiagramUndoManager.js';
 import { icon } from './utils/uiIcons.js';
-import { openModal } from './utils/modal.js';
+import { openModal, confirmDialog } from './utils/modal.js';
 import { isUmlClassElement } from './DiagramElementFactory.js';
 import { buildAnchorNamespace, buildRouterNamespace } from './utils/relationshipAnchor.js';
 // Configurar JointJS correctamente
@@ -338,6 +338,8 @@ listenForCollaborationStart() {
 
         // Eventos del paper (en modo "solo ver" no se selecciona ni edita nada)
         if (this.viewerMode) {
+            // Grilla CSS: la de JointJS se regenera como imagen en cada desplazamiento.
+            this.zoomManager.useLightGrid();
             this.zoomManager.setupMouseWheelZoom();
             return;
         }
@@ -361,7 +363,8 @@ listenForCollaborationStart() {
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
                 this.saveManager.saveDiagram();
-            } else if (e.key === 'Delete' && this.selectedElement) {
+            } else if (e.key === 'Delete' && this.selectedElement && !e.target.closest?.('input, textarea, select, [contenteditable="true"]')) {
+                // Supr dentro de un campo (chat, propiedades) borra texto, no la clase.
                 this.deleteElement();
             } else if (e.key === 'Escape') {
                 this.cancelOperation();
@@ -756,16 +759,23 @@ listenForCollaborationStart() {
         }
     }
 
-    deleteElement() {
-        if (!this.selectedElement) {
+    async deleteElement() {
+        const element = this.selectedElement;
+        if (!element) {
             console.log('⚠️ No hay elemento seleccionado para eliminar');
             return;
         }
 
-        var elementType = this.selectedElement.isLink() ? 'relación' : 'clase';
-        if (confirm(`¿Eliminar esta ${elementType}?`)) {
-            var elementId = this.selectedElement.id;
-            this.selectedElement.remove();
+        const ok = await confirmDialog({
+            tone: 'danger',
+            title: `¿Eliminar ${describeElement(element)}?`,
+            message: element.isLink() ? 'Puedes recuperarla con Deshacer (Ctrl+Z).' : 'También se borran sus relaciones. Puedes recuperarla con Deshacer (Ctrl+Z).',
+            confirmLabel: 'Eliminar',
+        });
+        // Mientras se decidía, la selección pudo cambiar o el elemento ya no existir.
+        if (ok && this.selectedElement === element && element.graph) {
+            var elementId = element.id;
+            element.remove();
             this.selectedElement = null;
             this.propertiesPanel?.discard();
             this.releaseAnyHeldLock();

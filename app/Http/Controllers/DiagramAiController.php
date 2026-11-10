@@ -37,7 +37,7 @@ class DiagramAiController extends Controller
         }
 
         if (!$diagram->canBeEditedBy(Auth::user())) {
-            abort(403, 'No tenés permisos para editar este diagrama.');
+            abort(403, 'No tienes permisos para editar este diagrama.');
         }
 
         $validated = $request->validate([
@@ -67,7 +67,7 @@ class DiagramAiController extends Controller
 
             return response()->json([
                 'error' => 'ai_provider_error',
-                'message' => 'El asistente de IA no pudo analizar la imagen. Probá con otra foto/captura.',
+                'message' => 'El asistente de IA no pudo analizar la imagen. Prueba con otra foto/captura.',
             ], 502);
         }
     }

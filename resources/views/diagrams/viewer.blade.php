@@ -65,7 +65,8 @@
         .viewer-edit:hover { opacity: .88; }
 
         .viewer-stage { position: relative; flex: 1; min-height: 0; }
-        #paper-container { position: absolute; inset: 0; background: var(--v-bg); }
+        /* overflow: durante el gesto táctil el SVG se mueve con CSS y no debe salirse del lienzo. */
+        #paper-container { position: absolute; inset: 0; background-color: var(--v-bg); overflow: hidden; }
 
         .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #a1a1aa; flex-shrink: 0; }
         .live-dot.is-live { background: var(--v-live); box-shadow: 0 0 0 0 rgba(16, 185, 129, .5); animation: pulse 2s infinite; }

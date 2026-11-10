@@ -2,6 +2,7 @@
 // Exportación simple de diagramas a PNG/JPG
 
 import html2canvas from 'html2canvas';
+import { alertDialog } from './modal.js';
 
 export class SimpleImageExporter {
     constructor(editor) {
@@ -18,7 +19,7 @@ export class SimpleImageExporter {
             console.log('✅ Exportación PNG completada');
         } catch (error) {
             console.error('❌ Error en exportación PNG:', error);
-            alert('Error al exportar imagen: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo exportar la imagen', message: error.message });
         }
     }
 
@@ -32,7 +33,7 @@ export class SimpleImageExporter {
             console.log('✅ Exportación JPG completada');
         } catch (error) {
             console.error('❌ Error en exportación JPG:', error);
-            alert('Error al exportar imagen: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo exportar la imagen', message: error.message });
         }
     }
 

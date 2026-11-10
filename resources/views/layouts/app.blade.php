@@ -52,9 +52,8 @@
                     <div class="hidden sm:flex sm:items-center sm:ml-6">
                         <div class="ml-3 relative">
                             <div class="flex items-center space-x-3">
-                                <button type="button" id="support-chat-btn" data-support-context="dashboard" class="icon-btn" aria-label="Soporte" title="Soporte">
-                                    <x-icon name="help" :size="18" />
-                                </button>
+                                {{-- El Guía (asistente de ayuda con IA) es un botón flotante abajo a la derecha --}}
+                                <span hidden data-support-context="dashboard"></span>
 
                                 @livewire('notification-bell')
 

@@ -29,83 +29,14 @@
 </head>
 <body class="font-sans antialiased bg-gray-100">
     <div id="app" class="h-screen flex flex-col">
+        {{-- La barra superior (volver, título, guardado, edición, archivo,
+             compartir y usuario) es UNA sola y vive en el componente Livewire
+             (livewire/diagram-editor.blade.php). Antes había dos barras
+             apiladas con el título repetido. --}}
 
-        {{-- Header con navegación --}}
-        <nav class="bg-white border-b border-gray-200 px-4 py-2.5">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    {{-- Logo y navegación --}}
-                    <a href="{{ route('diagrams.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
-                        <x-icon name="home" :size="17" />
-                        <span class="text-sm font-medium">Mis Diagramas</span>
-                    </a>
-
-                    <div class="h-5 w-px bg-gray-200"></div>
-
-                    {{-- Breadcrumb del diagrama actual --}}
-                    <div class="flex items-center space-x-2 text-sm">
-                        <span class="text-gray-400">Editor UML</span>
-                        @if(isset($diagramId))
-                            <span class="text-gray-300">/</span>
-                            <span class="text-gray-800 font-medium" id="diagram-title-nav">
-                                Cargando...
-                            </span>
-                        @endif
-                    </div>
-
-                    @if(isset($diagram) && $diagram->user_id === auth()->id())
-                        <button
-                            type="button"
-                            id="support-target-share"
-                            onclick="window.Livewire.dispatch('open-share-modal')"
-                            class="btn btn-secondary btn-sm">
-                            <x-icon name="users" :size="14" /> Compartir
-                        </button>
-                    @endif
-
-                    <button type="button" id="support-chat-btn" data-support-context="editor" class="btn btn-secondary btn-sm">
-                        <x-icon name="help" :size="14" /> Soporte
-                    </button>
-                </div>
-
-                {{-- Usuario y opciones --}}
-                <div class="flex items-center space-x-4">
-                    {{-- Estado de guardado --}}
-                    <div id="save-status" class="flex items-center space-x-2 text-xs text-gray-500">
-                        <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full" id="save-indicator"></div>
-                        <span id="save-text">Guardado</span>
-                    </div>
-
-                    <div class="h-5 w-px bg-gray-200"></div>
-
-                    {{-- Usuario --}}
-                    <x-dropdown align="right" width="48">
-                        <x-slot name="trigger">
-                            <button type="button" class="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
-                                <span class="collaborator-avatar" style="background-color: var(--uml-gray-400); margin-left: 0;">
-                                    {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
-                                </span>
-                                <span class="text-sm">{{ Auth::user()->name }}</span>
-                            </button>
-                        </x-slot>
-
-                        <x-slot name="content">
-                            <x-dropdown-link :href="route('profile.edit')">
-                                {{ __('Perfil') }}
-                            </x-dropdown-link>
-
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <x-dropdown-link :href="route('logout')"
-                                        onclick="event.preventDefault(); this.closest('form').submit();">
-                                    {{ __('Cerrar sesión') }}
-                                </x-dropdown-link>
-                            </form>
-                        </x-slot>
-                    </x-dropdown>
-                </div>
-            </div>
-        </nav>
+        {{-- El Tutor (asistente de ayuda con IA) es un botón flotante: resources/js/support/supportChat.js.
+             En el editor se acomoda al pie del riel derecho. --}}
+        <span hidden data-support-context="editor"></span>
 
         {{-- Editor principal --}}
         <div class="flex-1 flex flex-col min-h-0">
@@ -253,19 +184,13 @@
             }
 
             async updateBreadcrumb() {
-                if (!this.diagramId) {
-                    const titleEl = document.getElementById('diagram-title-nav');
-                    if (titleEl) titleEl.textContent = 'Nuevo Diagrama';
-                    return;
-                }
+                if (!this.diagramId) return;
 
                 try {
                     const response = await fetch(`/diagrams/api/${this.diagramId}/stats`);
                     const data = await response.json();
 
-                    const titleEl = document.getElementById('diagram-title-nav');
-                    if (titleEl && data.title) {
-                        titleEl.textContent = data.title;
+                    if (data.title) {
                         document.title = `${data.title} - Editor UML`;
                     }
                 } catch (error) {

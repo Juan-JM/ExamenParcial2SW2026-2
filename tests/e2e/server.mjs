@@ -48,6 +48,26 @@ function writeEnvironment() {
 
 /** Responde de forma predecible según lo que se le pide. */
 function fakeReply(prompt) {
+    // Asistente de ayuda (Guía): un recorrido de dos pasos por el menú Exportar.
+    if (prompt.includes('ELEMENTOS VISIBLES')) {
+        if (/nuevo diagrama|diagrama nuevo/i.test(prompt.split('PREGUNTA:').pop())) {
+            return {
+                answer: 'Claro, los diagramas nuevos se crean desde Mis Diagramas.',
+                steps: [
+                    { say: 'Primero vuelve a Mis Diagramas con este enlace de arriba.', highlight: null, target: 'Mis Diagramas' },
+                    { say: 'Ahora toca Nuevo Diagrama y se abre uno vacío.', highlight: null, target: 'Nuevo Diagrama' },
+                ],
+            };
+        }
+        return {
+            answer: 'Claro, generar el SQL es rápido. Te muestro.',
+            steps: [
+                { say: 'Primero ve al menú Exportar, aquí arriba: ahí está todo lo que se puede generar.', highlight: null, target: 'Exportar' },
+                { say: 'Ahora toca Generar SQL y se descarga el script de la base de datos.', highlight: null, target: 'Generar SQL' },
+            ],
+        };
+    }
+
     const request = prompt.match(/MENSAJE ACTUAL de ([^:]+):\n"([\s\S]*?)"\n\nRespond/);
     const author = request?.[1] ?? 'alguien';
     const text = request?.[2] ?? '';

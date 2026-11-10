@@ -91,13 +91,23 @@ test('una respuesta larga se lee completa, por partes', () => {
     assert.equal(chunks.join(' ').replace(/\s+/g, ' '), long.replace(/\s+/g, ' ').trim());
 });
 
-test('la voz por defecto prefiere natural y masculina en español', () => {
+test('sin la voz de Google, prefiere natural y masculina en español', () => {
     const voices = [
         { name: 'Microsoft Helena - Spanish (Spain)', lang: 'es-ES' },
-        { name: 'Google español', lang: 'es-ES' },
+        { name: 'Google español de Estados Unidos', lang: 'es-US' },
         { name: 'Microsoft Alvaro Online (Natural) - Spanish (Spain)', lang: 'es-ES' },
         { name: 'Microsoft David - English', lang: 'en-US' },
     ];
     assert.match(pickDefaultVoice(voices).name, /Alvaro/);
     assert.equal(pickDefaultVoice([{ name: 'English', lang: 'en-US' }]), null);
+});
+
+test('si Chrome tiene la voz masculina de Google, todas las IAs usan esa', () => {
+    const voices = [
+        { name: 'Microsoft Helena - Spanish (Spain)', lang: 'es-ES' },
+        { name: 'Google español', lang: 'es-ES' },
+        { name: 'Microsoft Alvaro Online (Natural) - Spanish (Spain)', lang: 'es-ES' },
+        { name: 'Google español de Estados Unidos', lang: 'es-US' },
+    ];
+    assert.equal(pickDefaultVoice(voices).name, 'Google español');
 });

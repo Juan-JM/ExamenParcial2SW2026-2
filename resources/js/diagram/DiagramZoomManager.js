@@ -146,75 +146,170 @@ export class DiagramZoomManager {
     // Un dedo sobre el fondo desplaza; dos dedos hacen zoom centrado en el
     // punto medio del pellizco. En modo "solo ver" un dedo desplaza aunque
     // empiece sobre una clase, porque nada se puede arrastrar.
+    //
+    // Rendimiento: paper.translate()/scale() de JointJS redibuja la grilla
+    // (serializa un SVG a base64 en cada llamada) y vuelve a pintar todo el
+    // SVG. Hacerlo en cada touchmove (~120 por segundo en un celular) se
+    // sentía con retraso. Durante el gesto solo se aplica una transformación
+    // CSS al <svg> ya dibujado (la compone la GPU), una vez por cuadro; al
+    // soltar se pasa el resultado a JointJS una sola vez. Lo que llega del
+    // colaborativo mientras tanto se dibuja normal dentro del SVG (en
+    // coordenadas del modelo), así que no se pierde ni se desfasa.
 
     setupTouchNavigation() {
-        var paperEl = this.editor.paper.el;
+        var paper = this.editor.paper;
+        var paperEl = paper.el;
+        var svg = paper.svg;
         var mode = null;
         var last = null;
         var startDistance = 0;
         var startZoom = 1;
+        // base = lo que JointJS tiene dibujado; view = lo que se ve durante el gesto.
+        var base = null;
+        var view = null;
+        var frame = 0;
 
         var distance = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
         var midpoint = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
 
         paperEl.style.touchAction = 'none';
+        svg.style.transformOrigin = '0 0';
+
+        var begin = () => {
+            if (base) return;
+            var t = paper.translate();
+            base = { zoom: this.currentZoom, tx: t.tx, ty: t.ty };
+            view = { zoom: base.zoom, tx: base.tx, ty: base.ty };
+            svg.style.willChange = 'transform';
+            // El SVG desplazado no debe recortarse en su propio borde: recorta el contenedor.
+            svg.style.overflow = 'visible';
+        };
+
+        var paint = () => {
+            frame = 0;
+            if (!base) return;
+            var k = view.zoom / base.zoom;
+            var dx = view.tx - k * base.tx;
+            var dy = view.ty - k * base.ty;
+            svg.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')';
+            this.paintLightGrid(view.zoom, view.tx, view.ty);
+        };
+
+        var schedule = () => {
+            if (!frame) frame = requestAnimationFrame(paint);
+        };
+
+        var commit = () => {
+            if (!base) return;
+            if (frame) cancelAnimationFrame(frame);
+            frame = 0;
+            var changedZoom = view.zoom !== base.zoom;
+            var changed = changedZoom || view.tx !== base.tx || view.ty !== base.ty;
+            // Quitar el CSS y pasarle el resultado a JointJS en el mismo cuadro: no se ve el salto.
+            svg.style.transform = '';
+            svg.style.willChange = '';
+            svg.style.overflow = '';
+            this.currentZoom = view.zoom;
+            if (changedZoom) paper.scale(view.zoom, view.zoom);
+            if (changed) paper.translate(view.tx, view.ty);
+            base = null;
+            view = null;
+            if (changedZoom) this.updateCanvasInfo();
+        };
 
         paperEl.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
+                begin();
                 mode = 'pinch';
                 startDistance = distance(e.touches[0], e.touches[1]);
-                startZoom = this.currentZoom;
+                startZoom = view.zoom;
                 last = midpoint(e.touches[0], e.touches[1]);
                 e.preventDefault();
             } else if (e.touches.length === 1) {
                 var onShape = e.target.closest('.joint-element') || e.target.closest('.joint-link');
                 if (onShape && !this.editor.viewerMode) return;
+                begin();
                 mode = 'pan';
                 last = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             }
         }, { passive: false });
 
         paperEl.addEventListener('touchmove', (e) => {
-            if (!mode) return;
+            if (!mode || !view) return;
             e.preventDefault();
 
             if (mode === 'pan' && e.touches.length === 1) {
-                var t = this.editor.paper.translate();
-                this.editor.paper.translate(t.tx + e.touches[0].clientX - last.x, t.ty + e.touches[0].clientY - last.y);
+                view.tx += e.touches[0].clientX - last.x;
+                view.ty += e.touches[0].clientY - last.y;
                 last = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                schedule();
                 return;
             }
 
             if (mode === 'pinch' && e.touches.length === 2) {
                 var mid = midpoint(e.touches[0], e.touches[1]);
                 var newZoom = Math.max(0.05, Math.min(3, startZoom * distance(e.touches[0], e.touches[1]) / startDistance));
-                var rect = paperEl.getBoundingClientRect();
+                // El rectángulo del contenedor no cambia durante el gesto: se mide una vez.
+                var rect = this._touchRect || (this._touchRect = paperEl.getBoundingClientRect());
                 var px = mid.x - rect.left;
                 var py = mid.y - rect.top;
-                var t = this.editor.paper.translate();
-                var ratio = newZoom / this.currentZoom;
+                var ratio = newZoom / view.zoom;
 
                 // Zoom hacia el punto medio + desplazamiento del propio pellizco.
-                var tx = px - (px - t.tx) * ratio + (mid.x - last.x);
-                var ty = py - (py - t.ty) * ratio + (mid.y - last.y);
-
-                this.currentZoom = newZoom;
-                this.editor.paper.scale(newZoom, newZoom);
-                this.editor.paper.translate(tx, ty);
+                view.tx = px - (px - view.tx) * ratio + (mid.x - last.x);
+                view.ty = py - (py - view.ty) * ratio + (mid.y - last.y);
+                view.zoom = newZoom;
                 last = mid;
-                this.updateCanvasInfo();
+                schedule();
             }
         }, { passive: false });
 
-        paperEl.addEventListener('touchend', (e) => {
+        var end = (e) => {
             if (e.touches.length === 0) {
                 mode = null;
-            } else if (e.touches.length === 1) {
+                this._touchRect = null;
+                commit();
+            } else if (e.touches.length === 1 && view) {
                 // Se levantó un dedo del pellizco: seguir desplazando con el otro.
                 mode = 'pan';
                 last = { x: e.touches[0].clientX, y: e.touches[0].clientY };
             }
-        });
+        };
+        paperEl.addEventListener('touchend', end);
+        paperEl.addEventListener('touchcancel', end);
+    }
+
+    // ==================== GRILLA LIVIANA (modo "solo ver") ====================
+    // La grilla de JointJS se regenera como imagen en cada desplazamiento o
+    // zoom. En la vista "Ver" (y la app móvil) se reemplaza por dos degradados
+    // CSS que solo cambian de tamaño y posición: mismo aspecto (líneas cada
+    // gridSize × 5, color #e5e7eb) y costo casi nulo.
+
+    useLightGrid() {
+        var paper = this.editor.paper;
+        paper.options.drawGrid = false;
+        paper.clearGrid();
+        this._lightGrid = true;
+
+        paper.el.style.backgroundImage =
+            'linear-gradient(to right, #e5e7eb 1px, transparent 1px),' +
+            'linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)';
+
+        var sync = () => {
+            var t = paper.translate();
+            this.paintLightGrid(paper.scale().sx, t.tx, t.ty);
+        };
+        paper.on('scale translate', sync);
+        sync();
+    }
+
+    paintLightGrid(zoom, tx, ty) {
+        if (!this._lightGrid) return;
+        var style = this.editor.paper.el.style;
+        var size = (this.editor.paper.options.gridSize || 10) * 5 * zoom;
+        // Muy alejado, las líneas taparían el diagrama: se ocultan.
+        style.backgroundSize = size < 8 ? '0 0' : size + 'px ' + size + 'px';
+        style.backgroundPosition = tx + 'px ' + ty + 'px';
     }
 
     setupMouseWheelZoom() {

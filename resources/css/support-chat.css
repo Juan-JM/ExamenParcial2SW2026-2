@@ -1,250 +1,769 @@
 /* resources/css/support-chat.css
-   Estilos del widget de "Soporte" (chat de preguntas frecuentes + guía
-   visual con spotlight). Namespace propio (sc-*) a propósito, para no
-   pisar ninguna clase existente de uml-editor.css. */
+   "Guía", el asistente de ayuda con IA: botón flotante con bot, panel de
+   charla por voz/texto y recorrido guiado con spotlight. Namespace propio
+   (sc-*) a propósito, para no pisar ninguna clase de uml-editor.css.
+   Paleta sobria, la misma del editor (zinc): sin degradés ni colores de marca.
+   Va por encima de las ventanas modales (z 10000) porque también ayuda ahí. */
 
-.sc-panel {
+:root {
+    --sc-ink: #18181b;
+    --sc-muted: #71717a;
+    --sc-line: #e4e4e7;
+    --sc-soft: #f4f4f5;
+    --sc-ok: #10b981;      /* el verde de "Guardado": la IA está hablando */
+    --sc-live: #dc2626;    /* micrófono abierto */
+    --sc-z: 10050;
+}
+
+/* Los toasts del editor viven abajo a la derecha: se suben para no chocar. */
+body.has-sc-fab .toast {
+    bottom: 96px;
+}
+
+/* ==================== BOTÓN FLOTANTE ==================== */
+
+.sc-fab {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 320px;
-    max-height: min(480px, calc(100vh - 40px));
-    background: #ffffff;
-    border: 1px solid var(--uml-border-color, #e2e8f0);
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-    z-index: 2000;
-    flex-direction: column;
-    overflow: hidden;
+    right: 22px;
+    bottom: 22px;
+    z-index: var(--sc-z);
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--sc-ink);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 8px 22px rgba(24, 24, 27, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     font-family: inherit;
 }
 
-.sc-panel-header {
+.sc-fab:hover {
+    transform: translateY(-1px);
+    background: #000;
+    box-shadow: 0 12px 28px rgba(24, 24, 27, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.sc-fab:focus-visible {
+    outline: 2px solid var(--sc-ink);
+    outline-offset: 3px;
+}
+
+.sc-fab-face {
+    width: 32px;
+    height: 32px;
+    display: block;
+}
+
+.sc-fab-face svg,
+.sc-head-avatar svg,
+.sc-tour-avatar svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.sc-bot-eye {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sc-blink 4.5s infinite;
+}
+
+.sc-fab-badge {
+    position: absolute;
+    top: -3px;
+    right: -5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px 1px 4px;
+    border-radius: 999px;
+    background: #fff;
+    color: var(--sc-ink);
+    border: 1px solid var(--sc-line);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    box-shadow: 0 2px 6px rgba(24, 24, 27, 0.15);
+}
+
+.sc-fab-badge svg {
+    width: 9px;
+    height: 9px;
+    color: var(--sc-ok);
+}
+
+/* Anillo de estado: invisible en reposo. */
+.sc-fab-ring {
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    pointer-events: none;
+}
+
+.sc-fab[data-state="listening"] .sc-fab-ring {
+    border-color: var(--sc-live);
+    animation: sc-pulse 1s ease-out infinite;
+}
+
+.sc-fab[data-state="speaking"] .sc-fab-ring {
+    border-color: var(--sc-ok);
+    animation: sc-pulse 1.3s ease-out infinite;
+}
+
+.sc-fab[data-state="thinking"] .sc-fab-ring {
+    inset: -4px;
+    border: 2px solid transparent;
+    border-top-color: var(--sc-muted);
+    border-right-color: var(--sc-muted);
+    animation: sc-spin 0.9s linear infinite;
+}
+
+/* Etiqueta que aparece al pasar el mouse: deja claro qué es. */
+.sc-fab-label {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translate(6px, -50%);
+    white-space: nowrap;
+    padding: 6px 11px;
+    border-radius: 8px;
+    background: var(--sc-ink);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    box-shadow: 0 6px 18px rgba(24, 24, 27, 0.22);
+}
+
+.sc-fab:hover .sc-fab-label,
+.sc-fab:focus-visible .sc-fab-label {
+    opacity: 1;
+    transform: translate(0, -50%);
+}
+
+.sc-fab.is-open .sc-fab-label {
+    display: none;
+}
+
+/* Durante el recorrido el bot queda por encima del oscurecido, "hablando". */
+.sc-fab.is-touring {
+    z-index: 10120;
+}
+
+/* ==================== PANEL ==================== */
+
+.sc-panel {
+    position: fixed;
+    right: 22px;
+    bottom: 94px;
+    z-index: var(--sc-z);
+    width: 370px;
+    height: min(560px, calc(100vh - 120px));
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--sc-line);
+    box-shadow: 0 20px 50px rgba(24, 24, 27, 0.2);
+    overflow: hidden;
+    font-family: inherit;
+    opacity: 0;
+    transform: translateY(10px);
+    transform-origin: bottom right;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.sc-panel[hidden] {
+    display: none;
+}
+
+.sc-panel.is-visible {
+    opacity: 1;
+    transform: none;
+}
+
+.sc-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
-    background: var(--uml-gray-900, #0f172a);
+    gap: 10px;
+    padding: 11px 10px 11px 14px;
+    background: var(--sc-ink);
     color: #fff;
     flex-shrink: 0;
 }
 
-.sc-panel-title {
-    font-size: 0.875rem;
+.sc-head-avatar {
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+}
+
+.sc-panel[data-state="speaking"] .sc-head-avatar {
+    border-color: var(--sc-ok);
+}
+
+.sc-head-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.sc-head-text strong {
+    font-size: 14px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.sc-panel-close {
+.sc-head-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.sc-head-status {
+    font-size: 11.5px;
+    color: #a1a1aa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sc-panel[data-state="listening"] .sc-head-status {
+    color: #fca5a5;
+}
+
+.sc-panel[data-state="speaking"] .sc-head-status {
+    color: #6ee7b7;
+}
+
+.sc-icon-btn {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
     background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 1.25rem;
-    line-height: 1;
+    color: #d4d4d8;
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
+    flex-shrink: 0;
 }
 
-.sc-panel-close:hover {
-    background: rgba(255, 255, 255, 0.15);
+.sc-icon-btn svg {
+    width: 18px;
+    height: 18px;
 }
 
-.sc-panel-body {
+.sc-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.sc-body {
     flex: 1;
     min-height: 0;
-    padding: 14px;
     overflow-y: auto;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    background: #fafafa;
 }
 
 .sc-bubble {
-    max-width: 92%;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-size: 0.8125rem;
-    line-height: 1.45;
+    max-width: 88%;
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.sc-bubble p {
+    margin: 0;
     white-space: pre-line;
 }
 
 .sc-bubble-bot {
-    background: var(--uml-gray-100, #f1f5f9);
-    color: var(--uml-gray-800, #1e293b);
     align-self: flex-start;
-    border-bottom-left-radius: 3px;
+    background: #fff;
+    color: var(--sc-ink);
+    border: 1px solid var(--sc-line);
+    border-bottom-left-radius: 4px;
 }
 
 .sc-bubble-user {
-    background: var(--uml-primary, #4f46e5);
-    color: #fff;
     align-self: flex-end;
-    border-bottom-right-radius: 3px;
-}
-
-.sc-question-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.sc-question-btn {
-    text-align: left;
-    padding: 8px 10px;
-    border: 1px solid var(--uml-border-color, #e2e8f0);
-    background: #fff;
-    border-radius: 8px;
-    font-size: 0.8125rem;
-    color: var(--uml-gray-700, #334155);
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.sc-question-btn:hover {
-    background: var(--uml-gray-50, #f8fafc);
-    border-color: var(--uml-gray-300, #cbd5e1);
-}
-
-.sc-answer-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 2px;
-}
-
-.sc-guide-btn,
-.sc-back-btn {
-    padding: 6px 10px;
-    border-radius: 7px;
-    font-size: 0.75rem;
-    cursor: pointer;
-    border: 1px solid transparent;
-}
-
-.sc-guide-btn {
-    background: var(--uml-primary, #4f46e5);
+    background: var(--sc-ink);
     color: #fff;
-}
-
-.sc-guide-btn:hover {
-    filter: brightness(1.08);
-}
-
-.sc-back-btn {
-    background: #fff;
-    border-color: var(--uml-border-color, #e2e8f0);
-    color: var(--uml-gray-600, #475569);
-}
-
-.sc-back-btn:hover {
-    background: var(--uml-gray-50, #f8fafc);
-}
-
-/* --- Guía visual (spotlight) --- */
-
-.sc-spotlight-box {
-    position: fixed;
-    z-index: 2100;
-    border-radius: 10px;
-    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.6);
-    outline: 3px solid #fbbf24;
-    outline-offset: 2px;
-    pointer-events: none;
-    transition: top 0.15s ease, left 0.15s ease, width 0.15s ease, height 0.15s ease;
-}
-
-.sc-spotlight-tooltip {
-    position: fixed;
-    z-index: 2101;
-    max-width: 260px;
-    background: var(--uml-gray-900, #0f172a);
-    color: #fff;
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 0.8125rem;
-    line-height: 1.4;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    transition: top 0.15s ease, left 0.15s ease;
-}
-
-.sc-spotlight-dismiss {
-    align-self: flex-start;
-    background: rgba(255, 255, 255, 0.15);
-    border: none;
-    color: #fff;
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    cursor: pointer;
-}
-
-.sc-spotlight-dismiss:hover {
-    background: rgba(255, 255, 255, 0.28);
-}
-
-@media (max-width: 480px) {
-    .sc-panel {
-        left: 12px;
-        right: 12px;
-        bottom: 12px;
-        width: auto;
-    }
-}
-
-/* Asistente de ayuda con IA */
-.sc-ask {
-    display: flex;
-    align-items: flex-end;
-    gap: 6px;
-    padding: 10px;
-    border-top: 1px solid var(--uml-border-color, #e2e8f0);
-    flex-shrink: 0;
-}
-
-.sc-ask-input {
-    flex: 1;
-    min-width: 0;
-    max-height: 90px;
-    padding: 7px 9px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font: inherit;
-    font-size: 13px;
-    resize: none;
-}
-
-.sc-ask-send {
-    padding: 7px 10px;
-    border: 0;
-    border-radius: 8px;
-    background: var(--uml-accent-600, #4f46e5);
-    color: #fff;
-    font-size: 12.5px;
-    cursor: pointer;
-}
-
-.sc-ask-send:disabled {
-    opacity: 0.5;
-    cursor: wait;
-}
-
-.sc-bubble-waiting {
-    color: #64748b;
-    font-style: italic;
+    border-bottom-right-radius: 4px;
 }
 
 .sc-steps {
-    margin: 6px 0 0;
-    padding-left: 18px;
+    margin: 8px 0 0;
+    padding-left: 20px;
 }
 
 .sc-steps li + li {
-    margin-top: 3px;
+    margin-top: 4px;
 }
 
-.sc-faq-link {
-    align-self: flex-start;
+.sc-replay {
+    margin-top: 9px;
+    padding: 5px 10px;
+    border: 1px solid var(--sc-line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--sc-ink);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.sc-replay:hover {
+    background: var(--sc-soft);
+    border-color: #d4d4d8;
+}
+
+.sc-bubble-typing {
+    padding: 12px 14px;
+}
+
+.sc-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.sc-dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #a1a1aa;
+    animation: sc-dot 1.1s infinite ease-in-out;
+}
+
+.sc-dots i:nth-child(2) { animation-delay: 0.15s; }
+.sc-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+/* Sugerencias */
+.sc-suggest {
+    border-top: 1px solid var(--sc-line);
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.sc-suggest[hidden] {
+    display: none;
+}
+
+.sc-suggest-toggle {
+    width: 100%;
+    padding: 7px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--sc-muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sc-suggest-toggle::after {
+    content: ' ▾';
+}
+
+.sc-suggest-toggle[aria-expanded="true"]::after {
+    content: ' ▴';
+}
+
+.sc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 12px 10px;
+    max-height: 132px;
+    overflow-y: auto;
+}
+
+.sc-chips[hidden] {
+    display: none;
+}
+
+.sc-chip {
+    padding: 5px 10px;
+    border: 1px solid var(--sc-line);
+    border-radius: 7px;
+    background: #fff;
+    color: #3f3f46;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.sc-chip:hover {
+    border-color: #a1a1aa;
+    color: var(--sc-ink);
+    background: var(--sc-soft);
+}
+
+/* Redactar / hablar */
+.sc-compose {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 12px 6px;
+    background: #fff;
+    border-top: 1px solid var(--sc-line);
+    flex-shrink: 0;
+}
+
+.sc-mic {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--sc-line);
+    border-radius: 10px;
+    background: var(--sc-soft);
+    color: var(--sc-ink);
+    cursor: pointer;
+}
+
+.sc-mic:hover {
+    background: var(--sc-line);
+}
+
+.sc-mic svg {
+    width: 19px;
+    height: 19px;
+}
+
+.sc-mic.is-listening {
+    background: var(--sc-live);
+    border-color: var(--sc-live);
+    color: #fff;
+    animation: sc-mic-pulse 1.2s infinite;
+}
+
+.sc-mic.is-unavailable {
+    opacity: 0.45;
+}
+
+.sc-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    max-height: 96px;
+    padding: 9px 12px;
+    border: 1px solid #d4d4d8;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 13.5px;
+    line-height: 1.4;
+    resize: none;
+    background: #fff;
+}
+
+.sc-input:focus {
+    outline: none;
+    border-color: var(--sc-ink);
+    box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.08);
+}
+
+.sc-panel[data-state="listening"] .sc-input {
+    border-color: var(--sc-live);
+}
+
+.sc-send {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 10px;
+    background: var(--sc-ink);
+    color: #fff;
+    cursor: pointer;
+}
+
+.sc-send:hover {
+    background: #000;
+}
+
+.sc-send svg {
+    width: 17px;
+    height: 17px;
+}
+
+.sc-send:disabled {
+    opacity: 0.4;
+    cursor: wait;
+}
+
+.sc-foot {
+    margin: 0;
+    padding: 0 12px 9px;
+    background: #fff;
+    color: #a1a1aa;
+    font-size: 11px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ==================== RECORRIDO GUIADO ==================== */
+
+/* Oscurecido de toda la pantalla cuando el paso no tiene un botón concreto. */
+.sc-tour-dim {
+    position: fixed;
+    inset: 0;
+    z-index: 10090;
+    pointer-events: none;
+    background: transparent;
+    transition: background 0.25s ease;
+}
+
+.sc-tour-dim.is-solid {
+    background: rgba(9, 9, 11, 0.66);
+}
+
+/* Hueco iluminado: su sombra gigante oscurece todo lo demás. Sin clics: el
+   clic llega al botón real de abajo. */
+.sc-tour-spot {
+    position: fixed;
+    z-index: 10100;
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(9, 9, 11, 0.66);
+    pointer-events: none;
+    transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+.sc-tour-spot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 13px;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18);
+    animation: sc-spot 1.6s ease-in-out infinite;
+}
+
+.sc-tour-spot[hidden] {
+    display: none;
+}
+
+.sc-tour-card {
+    position: fixed;
+    z-index: 10110;
+    width: min(330px, calc(100vw - 24px));
+    padding: 14px;
+    border-radius: 12px;
+    background: #fff;
+    color: var(--sc-ink);
+    box-shadow: 0 18px 44px rgba(9, 9, 11, 0.35);
+    border: 1px solid var(--sc-line);
+    font-family: inherit;
+    transition: top 0.25s ease, left 0.25s ease;
+}
+
+.sc-tour-card.is-entering {
+    animation: sc-card-in 0.25s ease;
+}
+
+.sc-tour-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.sc-tour-avatar {
+    width: 32px;
+    height: 32px;
+    padding: 5px;
+    border-radius: 9px;
+    background: var(--sc-ink);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.sc-tour-who {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.sc-tour-who strong {
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.sc-tour-who small {
+    color: var(--sc-muted);
+    font-size: 11.5px;
+}
+
+.sc-tour-close {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--sc-muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sc-tour-close:hover {
+    background: var(--sc-soft);
+    color: var(--sc-ink);
+}
+
+.sc-tour-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.sc-tour-hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--sc-muted);
+}
+
+.sc-tour-hint:empty {
+    display: none;
+}
+
+.sc-tour-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.sc-tour-spacer {
+    flex: 1;
+}
+
+.sc-tour-actions button {
+    padding: 6px 12px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--sc-line);
+    background: #fff;
+    color: #3f3f46;
+}
+
+.sc-tour-actions button:hover {
+    background: var(--sc-soft);
+}
+
+.sc-tour-actions button[hidden] {
+    display: none;
+}
+
+.sc-tour-actions .sc-tour-next {
+    border-color: var(--sc-ink);
+    background: var(--sc-ink);
+    color: #fff;
+}
+
+.sc-tour-actions .sc-tour-next:hover {
+    background: #000;
+}
+
+.sc-tour-actions .sc-tour-replay {
+    border: 0;
+    color: var(--sc-muted);
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+/* ==================== ANIMACIONES ==================== */
+
+@keyframes sc-blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+}
+
+@keyframes sc-pulse {
+    0% { transform: scale(0.95); opacity: 0.9; }
+    100% { transform: scale(1.25); opacity: 0; }
+}
+
+@keyframes sc-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes sc-dot {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+    40% { transform: translateY(-3px); opacity: 1; }
+}
+
+@keyframes sc-mic-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    100% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+}
+
+@keyframes sc-spot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+@keyframes sc-card-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sc-bot-eye,
+    .sc-fab-ring,
+    .sc-tour-spot::after {
+        animation: none !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .sc-fab {
+        right: 16px;
+        bottom: 16px;
+        width: 54px;
+        height: 54px;
+    }
+
+    .sc-fab-label {
+        display: none;
+    }
+
+    .sc-panel {
+        left: 12px;
+        right: 12px;
+        bottom: 80px;
+        width: auto;
+        height: min(520px, calc(100vh - 96px));
+    }
 }

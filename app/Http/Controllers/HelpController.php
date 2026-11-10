@@ -25,10 +25,13 @@ class HelpController extends Controller
             'page.modal' => ['nullable', 'string', 'max:300'],
             'page.editor' => ['nullable', 'array'],
             'page.editor.*' => ['nullable'],
-            'page.targets' => ['nullable', 'array', 'max:60'],
+            'page.targets' => ['nullable', 'array', 'max:100'],
             'page.targets.*.key' => ['required', 'string', 'max:80'],
             'page.targets.*.label' => ['required', 'string', 'max:120'],
-            'page.targets.*.kind' => ['nullable', 'string', 'max:20'],
+            'page.targets.*.kind' => ['nullable', 'string', 'max:40'],
+            'history' => ['nullable', 'array', 'max:6'],
+            'history.*.q' => ['required', 'string', 'max:500'],
+            'history.*.a' => ['nullable', 'string', 'max:1500'],
         ]);
 
         $user = $request->user();
@@ -38,6 +41,7 @@ class HelpController extends Controller
             'user_name' => $user->name,
             'question' => $validated['question'],
             'page' => $validated['page'],
+            'history' => $validated['history'] ?? [],
             'status' => 'pending',
         ]);
 

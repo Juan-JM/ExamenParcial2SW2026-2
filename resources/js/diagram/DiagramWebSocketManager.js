@@ -1,6 +1,7 @@
 // resources/js/diagram/DiagramWebSocketManager.js
 // Módulo especializado para gestión de WebSockets
 // Integra con la arquitectura modular existente
+import { alertDialog } from './utils/modal.js';
 
 export class DiagramWebSocketManager {
     constructor(editor) {
@@ -213,8 +214,14 @@ export class DiagramWebSocketManager {
         // pestaña hasta cerrarla, aunque el acceso ya estuviera revocado en
         // el servidor.
         if (event.user.id === this.userId) {
-            alert('El dueño del diagrama te quitó el acceso a este documento.');
-            window.location.href = '/diagrams';
+            alertDialog({
+                tone: 'warning',
+                title: 'Ya no tienes acceso a este diagrama',
+                message: 'El dueño te quitó de los colaboradores. Te llevamos a Mis Diagramas.',
+                confirmLabel: 'Ir a Mis Diagramas',
+            }).then(() => { window.location.href = '/diagrams'; });
+            // Aunque no toque el botón, no puede seguir editando: se va igual.
+            setTimeout(() => { window.location.href = '/diagrams'; }, 8000);
             return;
         }
 

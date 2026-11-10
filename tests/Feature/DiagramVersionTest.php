@@ -99,6 +99,8 @@ class DiagramVersionTest extends TestCase
             ->call('saveDiagram', json_encode(['cells' => [['id' => 'x', 'umlData' => ['className' => 'Manual']]]]));
 
         $this->assertSame('manual', DiagramSnapshot::first()?->reason);
+        // Guardar queda en la auditoría (y por eso avisa al equipo en el celular).
+        $this->assertTrue(ActivityEntry::where('diagram_id', $diagram->id)->where('action', 'SAVE')->exists());
 
         $this->postJson(route('diagrams.api.autosave', $diagram->id), ['data' => json_encode(['cells' => [['id' => 'y', 'umlData' => ['className' => 'Auto']]]])])->assertOk();
         $this->assertSame(1, DiagramSnapshot::count());

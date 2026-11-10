@@ -109,7 +109,7 @@
             {{-- Mis diagramas --}}
             @include('diagrams.partials.diagram-grid', [
                 'diagrams' => $diagrams,
-                'emptyTitle' => 'No tenés diagramas aún',
+                'emptyTitle' => 'No tienes diagramas aún',
                 'emptyMessage' => 'Comenzá creando tu primer diagrama de clases UML',
                 'emptyAction' => true,
             ])
@@ -122,8 +122,8 @@
 
                 @include('diagrams.partials.diagram-grid', [
                     'diagrams' => $sharedDiagrams,
-                    'emptyTitle' => 'Todavía nadie compartió un diagrama con vos',
-                    'emptyMessage' => 'Cuando alguien te invite a colaborar en uno de los suyos, va a aparecer acá.',
+                    'emptyTitle' => 'Todavía nadie compartió un diagrama contigo',
+                    'emptyMessage' => 'Cuando alguien te invite a colaborar en uno de los suyos, va a aparecer aquí.',
                     'emptyAction' => false,
                 ])
             </div>

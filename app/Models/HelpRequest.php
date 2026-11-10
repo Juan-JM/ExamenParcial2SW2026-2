@@ -14,6 +14,7 @@ class HelpRequest extends Model
         'user_name',
         'question',
         'page',
+        'history',
         'status',
         'answer',
         'steps',

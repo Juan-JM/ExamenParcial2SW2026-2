@@ -8,6 +8,7 @@
 
 import { DiagramElementFactory } from './DiagramElementFactory.js';
 import { icon } from './utils/uiIcons.js';
+import { confirmDialog } from './utils/modal.js';
 
 const STEREOTYPE_OPTIONS = [
     ['', 'Sin estereotipo'],
@@ -413,12 +414,21 @@ export class DiagramPropertiesPanel {
             .map(i => i > removedIndex ? i - 1 : i);
     }
 
-    deleteCurrentElement() {
-        if (!this.currentElement) return;
-        if (!confirm('¿Estás seguro de que quieres eliminar esta clase?')) return;
+    async deleteCurrentElement() {
+        const element = this.currentElement;
+        if (!element) return;
 
-        const elementId = this.currentElement.id;
-        this.currentElement.remove();
+        const ok = await confirmDialog({
+            tone: 'danger',
+            title: `¿Eliminar ${describeElement(element)}?`,
+            message: 'También se borran sus relaciones. Puedes recuperarla con Deshacer (Ctrl+Z).',
+            confirmLabel: 'Eliminar',
+        });
+        // Mientras se decidía, otro colaborador pudo borrarla o se cambió de selección.
+        if (!ok || this.currentElement !== element || !element.graph) return;
+
+        const elementId = element.id;
+        element.remove();
         this.editor.selectedElement = null;
         this.discard();
         this.editor.updateCanvasInfo();
@@ -545,4 +555,12 @@ export class DiagramPropertiesPanel {
             }
         });
     }
+}
+
+/** "la clase Cliente", "la interfaz Pagable": para los diálogos de confirmación. */
+export function describeElement(element) {
+    if (element.isLink?.()) return 'esta relación';
+    const data = element.get('umlData') || {};
+    const kind = data.type === 'interface' || data.isInterface ? 'la interfaz' : 'la clase';
+    return data.className ? `${kind} ${data.className}` : `esta ${kind.replace('la ', '')}`;
 }

@@ -1,6 +1,7 @@
 // resources/js/diagram/utils/simpleXMIExport.js
 // Exportación XMI 100% compatible con Enterprise Architect 13.5
 // CORREGIDO: Herencias, composiciones y multiplicidades
+import { alertDialog } from './modal.js';
 
 export class SimpleXMIExporter {
     constructor(editor) {
@@ -17,7 +18,7 @@ export class SimpleXMIExporter {
             console.log('✅ Exportación XMI completada');
         } catch (error) {
             console.error('❌ Error en exportación XMI:', error);
-            alert('Error al exportar XMI: ' + error.message);
+            alertDialog({ tone: 'error', title: 'No se pudo exportar el XMI', message: error.message });
         }
     }
 

@@ -3,7 +3,7 @@
 
 import * as joint from 'jointjs';
 import { DiagramElementFactory } from './DiagramElementFactory.js';
-import { openModal } from './utils/modal.js';
+import { openModal, confirmDialog } from './utils/modal.js';
 import { icon } from './utils/uiIcons.js';
 
 const ANCHOR_OPTIONS = [
@@ -1071,8 +1071,14 @@ export class DiagramRelationshipManager {
             console.log('✅ Relación editada con nuevos puntos de conexión');
         };
 
-        document.getElementById('deleteRelationBtn').onclick = () => {
-            if (confirm('¿Estás seguro de que quieres eliminar esta relación?')) {
+        document.getElementById('deleteRelationBtn').onclick = async () => {
+            const ok = await confirmDialog({
+                tone: 'danger',
+                title: '¿Eliminar esta relación?',
+                message: 'Puedes recuperarla con Deshacer (Ctrl+Z).',
+                confirmLabel: 'Eliminar',
+            });
+            if (ok && link.graph) {
                 finalized = true;
                 const linkId = link.id;
                 link.remove();

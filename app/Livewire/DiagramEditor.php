@@ -147,6 +147,9 @@ class DiagramEditor extends Component
                 $this->isDirty = false;
                 session()->flash('message', $message);
 
+                // Queda en la auditoría y avisa al equipo en el celular.
+                app(\App\Services\Agent\ActivityLog::class)->system($this->diagram->id, Auth::user(), 'SAVE', 'guardó el diagrama');
+
                 Log::info("Diagram saved successfully", [
                     'diagram_id' => $this->diagram->id,
                     'title' => $this->diagramTitle,

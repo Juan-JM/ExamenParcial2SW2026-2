@@ -127,7 +127,7 @@ class CollaborativeAgent
                 : 'El modelo local no está disponible: hay que abrir LM Studio u Ollama con el modelo cargado.', $e->getMessage());
         } catch (Throwable $e) {
             Log::error('CollaborativeAgent: error procesando el turno', ['message_id' => $message->id, 'error' => $e->getMessage()]);
-            $reply = $this->storeSystemReply($message, 'No pude procesar ese mensaje. Probá reformularlo.', $e->getMessage());
+            $reply = $this->storeSystemReply($message, 'No pude procesar ese mensaje. Prueba reformularlo.', $e->getMessage());
         }
 
         LiveBroadcast::send(new AgentMessagePosted($reply));
