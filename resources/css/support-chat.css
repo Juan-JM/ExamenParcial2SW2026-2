@@ -1,0 +1,250 @@
+/* resources/css/support-chat.css
+   Estilos del widget de "Soporte" (chat de preguntas frecuentes + guía
+   visual con spotlight). Namespace propio (sc-*) a propósito, para no
+   pisar ninguna clase existente de uml-editor.css. */
+
+.sc-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    max-height: min(480px, calc(100vh - 40px));
+    background: #ffffff;
+    border: 1px solid var(--uml-border-color, #e2e8f0);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+    z-index: 2000;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: inherit;
+}
+
+.sc-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--uml-gray-900, #0f172a);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.sc-panel-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.sc-panel-close {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.sc-panel-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.sc-panel-body {
+    flex: 1;
+    min-height: 0;
+    padding: 14px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sc-bubble {
+    max-width: 92%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.sc-bubble-bot {
+    background: var(--uml-gray-100, #f1f5f9);
+    color: var(--uml-gray-800, #1e293b);
+    align-self: flex-start;
+    border-bottom-left-radius: 3px;
+}
+
+.sc-bubble-user {
+    background: var(--uml-primary, #4f46e5);
+    color: #fff;
+    align-self: flex-end;
+    border-bottom-right-radius: 3px;
+}
+
+.sc-question-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sc-question-btn {
+    text-align: left;
+    padding: 8px 10px;
+    border: 1px solid var(--uml-border-color, #e2e8f0);
+    background: #fff;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    color: var(--uml-gray-700, #334155);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sc-question-btn:hover {
+    background: var(--uml-gray-50, #f8fafc);
+    border-color: var(--uml-gray-300, #cbd5e1);
+}
+
+.sc-answer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.sc-guide-btn,
+.sc-back-btn {
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.sc-guide-btn {
+    background: var(--uml-primary, #4f46e5);
+    color: #fff;
+}
+
+.sc-guide-btn:hover {
+    filter: brightness(1.08);
+}
+
+.sc-back-btn {
+    background: #fff;
+    border-color: var(--uml-border-color, #e2e8f0);
+    color: var(--uml-gray-600, #475569);
+}
+
+.sc-back-btn:hover {
+    background: var(--uml-gray-50, #f8fafc);
+}
+
+/* --- Guía visual (spotlight) --- */
+
+.sc-spotlight-box {
+    position: fixed;
+    z-index: 2100;
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.6);
+    outline: 3px solid #fbbf24;
+    outline-offset: 2px;
+    pointer-events: none;
+    transition: top 0.15s ease, left 0.15s ease, width 0.15s ease, height 0.15s ease;
+}
+
+.sc-spotlight-tooltip {
+    position: fixed;
+    z-index: 2101;
+    max-width: 260px;
+    background: var(--uml-gray-900, #0f172a);
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: top 0.15s ease, left 0.15s ease;
+}
+
+.sc-spotlight-dismiss {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.sc-spotlight-dismiss:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+@media (max-width: 480px) {
+    .sc-panel {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+    }
+}
+
+/* Asistente de ayuda con IA */
+.sc-ask {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 10px;
+    border-top: 1px solid var(--uml-border-color, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.sc-ask-input {
+    flex: 1;
+    min-width: 0;
+    max-height: 90px;
+    padding: 7px 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    resize: none;
+}
+
+.sc-ask-send {
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--uml-accent-600, #4f46e5);
+    color: #fff;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.sc-ask-send:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.sc-bubble-waiting {
+    color: #64748b;
+    font-style: italic;
+}
+
+.sc-steps {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.sc-steps li + li {
+    margin-top: 3px;
+}
+
+.sc-faq-link {
+    align-self: flex-start;
+}

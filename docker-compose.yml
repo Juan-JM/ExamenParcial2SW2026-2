@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  # Alternativa para equipos sin el servicio de MongoDB instalado. Levantar con
+  # `docker compose up -d mongodb`.
+  mongodb:
+    image: mongo:8.0
+    container_name: diagramador_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # Base de datos vectorial para la búsqueda semántica. Levantar con
+  # `docker compose up -d qdrant` (o usar el ejecutable de Windows, ver
+  # documentacion/09-busqueda-semantica.md).
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    container_name: diagramador_qdrant
+    restart: unless-stopped
+    ports:
+      # Solo desde esta misma máquina (Laravel lo usa por 127.0.0.1). En un servidor
+      # público no hay que exponer Qdrant a internet.
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # Solo como origen de `php artisan mongo:copy-from-postgres`.
+  postgres:
+    image: postgres:14.4
+    container_name: postgres14
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: diagramador_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  qdrant_data:
+  mongo_data:
+  postgres_data:

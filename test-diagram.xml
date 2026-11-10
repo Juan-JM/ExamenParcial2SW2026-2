@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<XMI xmi.version="1.1" xmlns:UML="omg.org/UML1.3" timestamp="2025-11-03 12:00:00">
+  <XMI.header>
+    <XMI.documentation>
+      <XMI.exporter>DiagramImportTest</XMI.exporter>
+      <XMI.exporterVersion>1.0</XMI.exporterVersion>
+    </XMI.documentation>
+  </XMI.header>
+  <XMI.content>
+    <UML:Model name="TestModel" xmi.id="MODEL_TEST">
+      <UML:Namespace.ownedElement>
+
+        <!-- Clase Usuario -->
+        <UML:Class name="Usuario" xmi.id="CLASS_USUARIO" visibility="public" isRoot="false" isLeaf="false" isAbstract="false" isActive="false">
+          <UML:Classifier.feature>
+            <UML:Attribute name="id" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+            <UML:Attribute name="nombre" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+            <UML:Attribute name="email" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+          </UML:Classifier.feature>
+        </UML:Class>
+
+        <!-- Clase Pedido -->
+        <UML:Class name="Pedido" xmi.id="CLASS_PEDIDO" visibility="public" isRoot="false" isLeaf="false" isAbstract="false" isActive="false">
+          <UML:Classifier.feature>
+            <UML:Attribute name="id" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+            <UML:Attribute name="fecha" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+            <UML:Attribute name="total" changeable="none" visibility="private" ownerScope="instance" targetScope="instance">
+              <UML:StructuralFeature.type>
+                <UML:Classifier xmi.idref="eaxmiid0"/>
+              </UML:StructuralFeature.type>
+            </UML:Attribute>
+          </UML:Classifier.feature>
+        </UML:Class>
+
+        <!-- Asociación entre Usuario y Pedido -->
+        <UML:Association xmi.id="ASSOC_USUARIO_PEDIDO" visibility="public" isRoot="false" isLeaf="false" isAbstract="false">
+          <UML:Association.connection>
+            <UML:AssociationEnd visibility="public" multiplicity="1" aggregation="none" isOrdered="false" targetScope="instance" changeable="none" isNavigable="true" type="CLASS_USUARIO">
+            </UML:AssociationEnd>
+            <UML:AssociationEnd visibility="public" multiplicity="0..*" aggregation="none" isOrdered="false" targetScope="instance" changeable="none" isNavigable="true" type="CLASS_PEDIDO">
+            </UML:AssociationEnd>
+          </UML:Association.connection>
+        </UML:Association>
+
+      </UML:Namespace.ownedElement>
+    </UML:Model>
+  </XMI.content>
+</XMI>
