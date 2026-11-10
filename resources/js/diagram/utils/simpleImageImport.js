@@ -112,11 +112,42 @@ export class SimpleImageImporter {
 
     // ==================== ANÁLISIS EN EL BACKEND ====================
 
+    /**
+     * Reduce la imagen a un máximo de 1600 px (respetando la orientación EXIF)
+     * y la convierte a JPEG. Si el navegador no puede, devuelve el archivo original.
+     */
+    async prepareImageForModel(file, maxSide = 1600) {
+        try {
+            const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+            const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+            const w = Math.max(1, Math.round(bitmap.width * scale));
+            const h = Math.max(1, Math.round(bitmap.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(bitmap, 0, 0, w, h);
+            bitmap.close?.();
+            const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.88));
+            if (!blob) return file;
+            console.log(`🖼️ Imagen reducida a ${w}x${h} (${(blob.size / 1024).toFixed(0)}KB)`);
+            return new File([blob], 'diagrama.jpg', { type: 'image/jpeg' });
+        } catch (e) {
+            console.warn('No se pudo reducir la imagen, se envía original:', e);
+            return file;
+        }
+    }
+
     async analyzeImageWithBackend(imageFile) {
         console.log('🤖 Enviando imagen al asistente de IA...');
 
+        // Las fotos del celular (4000+ px) no las procesa el modelo local
+        // ("The image failed to upload"): se reducen y recomprimen aquí.
+        const prepared = await this.prepareImageForModel(imageFile);
         const formData = new FormData();
-        formData.append('image', imageFile);
+        formData.append('image', prepared, prepared.name || 'diagrama.jpg');
 
         let response;
         try {
@@ -398,8 +429,15 @@ export class SimpleImageImporter {
         // pasada, después de TODAS las demás — necesitan que la asociación
         // M:N a la que se cuelgan ya exista en el graph (recién creada en
         // este mismo lote, o ya estaba antes).
-        const normalRels = relationshipsData.filter(r => r.type !== 'associationClassLink');
         const associationClassLinkRels = relationshipsData.filter(r => r.type === 'associationClassLink');
+        // Una clase asociativa solo se conecta con su línea punteada: el modelo
+        // a veces le inventa herencia/asociaciones hacia las clases del host.
+        const assocClassNames = new Set(associationClassLinkRels.map(r => (r.from || '').trim().toLowerCase()));
+        const normalRels = relationshipsData.filter(r =>
+            r.type !== 'associationClassLink'
+            && !assocClassNames.has((r.from || '').trim().toLowerCase())
+            && !assocClassNames.has((r.to || '').trim().toLowerCase())
+        );
 
         for (const relData of normalRels) {
             try {
@@ -467,10 +505,22 @@ export class SimpleImageImporter {
                     continue;
                 }
 
-                const hostLinkInfo = this.findExistingLinkBetween(hostA, hostB);
+                let hostLinkInfo = this.findExistingLinkBetween(hostA, hostB);
                 if (!hostLinkInfo) {
-                    console.warn(`⚠️ Clase asociativa ignorada: no hay asociación entre "${relData.to}" y "${relData.viaTargetClass}"`);
-                    continue;
+                    // La imagen muestra la asociación M:N (línea sin símbolos) pero el
+                    // modelo no la listó: se crea, es lo que la clase asociativa necesita.
+                    const hostConfig = { sourceMultiplicity: '*', targetMultiplicity: '*', relationName: '', sourceAnchor: 'auto', targetAnchor: 'auto' };
+                    const hostLink = this.relationshipManager.createRelationshipFromConfig('association', hostA, hostB, hostConfig);
+                    if (!hostLink) {
+                        console.warn(`⚠️ Clase asociativa ignorada: no hay asociación entre "${relData.to}" y "${relData.viaTargetClass}"`);
+                        continue;
+                    }
+                    this.editor.webSocketManager?.broadcastDiagramUpdate({
+                        type: 'relationship_created',
+                        data: { sourceId: hostA.id, targetId: hostB.id, relationshipType: 'association', config: hostConfig },
+                    });
+                    created++;
+                    hostLinkInfo = { link: hostLink, reversed: false };
                 }
 
                 const alreadyAttached = this.graph.getLinks().some((l) =>

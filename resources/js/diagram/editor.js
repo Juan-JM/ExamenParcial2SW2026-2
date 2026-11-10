@@ -169,11 +169,17 @@ async initializeCollaboration() {
 }
 
 /**
- * Solo en modo "solo ver": cada vez que alguien guarda (a mano, autoguardado,
- * IA, restaurar versión) el servidor avisa por 'diagram-agent.{id}' con
- * DiagramContentChanged, y acá se vuelve a pedir el diagrama completo. Cubre
- * el caso sin sesión colaborativa (no hay relevo en vivo) y corrige cualquier
- * diferencia que haya dejado un cambio en vivo perdido.
+ * Solo en modo "solo ver" (vista "Ver" y app móvil): cada vez que alguien
+ * guarda, el servidor avisa por 'diagram-agent.{id}' con DiagramContentChanged.
+ *
+ * - Sin sesión en vivo es la única vía de actualización: se pide el diagrama.
+ * - Con sesión en vivo los cambios ya llegan uno por uno por el canal del
+ *   diagrama, y el autoguardado corre 1,5 s después de CADA edición. Antes se
+ *   borraba y redibujaba todo con cada guardado: una versión atrasada respecto
+ *   de lo que ya se veía (las clases saltaban hacia atrás), parpadeo y mucho
+ *   trabajo en el celular. Ahora, en vivo, se espera a que el otro deje de
+ *   editar y solo se redibuja si lo guardado difiere de lo que hay en pantalla
+ *   (corrige un cambio en vivo perdido, nada más).
  */
 listenForSavedVersions() {
     if (!window.Echo || !window.diagramId || !window.authUser) return;
@@ -183,11 +189,49 @@ listenForSavedVersions() {
         .listen('.DiagramContentChanged', (event) => {
             if (event?.version && event.version === lastVersion) return;
             lastVersion = event?.version ?? null;
-            this.reloadFromServer();
+            this.scheduleViewerReload();
         });
 }
 
+isLiveViewer() {
+    return !!this.webSocketManager?.isConnected;
+}
+
+scheduleViewerReload() {
+    clearTimeout(this._viewerReloadTimer);
+    // En vivo: esperar a que haya calma (sin movimientos remotos recientes).
+    const delay = this.isLiveViewer() ? 2500 : 0;
+    this._viewerReloadTimer = setTimeout(() => {
+        if (this.isLiveViewer() && this.collaborationManager?.hadRecentRemoteActivity(2000)) {
+            this.scheduleViewerReload();
+            return;
+        }
+        this.reloadFromServer();
+    }, delay);
+}
+
+/** Lo que importa comparar de un diagrama: ids, posiciones, contenido UML y extremos. */
+viewerFingerprint(cells) {
+    return JSON.stringify((cells || []).map((cell) => [
+        cell.id,
+        cell.position ? Math.round(cell.position.x) : null,
+        cell.position ? Math.round(cell.position.y) : null,
+        cell.umlData || null,
+        cell.relationData || null,
+        cell.source?.id || null,
+        cell.target?.id || null,
+        cell.labels || null,
+    ]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+}
+
 async reloadFromServer() {
+    // Un solo pedido a la vez; si llega otro aviso mientras tanto, se repite al final.
+    if (this._viewerReloading) {
+        this._viewerReloadPending = true;
+        return;
+    }
+    this._viewerReloading = true;
+
     try {
         const response = await fetch(`/diagrams/api/${window.diagramId}/data`, {
             headers: { Accept: 'application/json' },
@@ -197,6 +241,14 @@ async reloadFromServer() {
         const payload = await response.json();
         const cells = payload?.data?.cells;
         if (!Array.isArray(cells)) return;
+
+        // Igual a lo que ya se ve (llegó en vivo): no se redibuja, pero se avisa
+        // igual, así la app móvil actualiza sus contadores.
+        const current = this.graph.toJSON().cells;
+        if (this.viewerFingerprint(cells) === this.viewerFingerprint(current)) {
+            document.dispatchEvent(new CustomEvent('uml-viewer:reloaded'));
+            return;
+        }
 
         // Conserva el encuadre actual: recargar no debe mover la vista.
         const scale = this.paper.scale();
@@ -209,6 +261,12 @@ async reloadFromServer() {
         document.dispatchEvent(new CustomEvent('uml-viewer:reloaded'));
     } catch (error) {
         console.warn('No se pudo recargar el diagrama:', error);
+    } finally {
+        this._viewerReloading = false;
+        if (this._viewerReloadPending) {
+            this._viewerReloadPending = false;
+            this.scheduleViewerReload();
+        }
     }
 }
 
@@ -456,6 +514,7 @@ listenForCollaborationStart() {
             this.highlightElement(this.relationshipManager.associativeClassSelected, false);
             this.relationshipManager.associativeClassSelected = null;
         }
+        this.relationshipManager.hideRelationshipHelp();
 
         // Cambiar cursor del paper
         var paperEl = this.paper.el;
@@ -502,6 +561,13 @@ listenForCollaborationStart() {
         } else if (this.selectedTool === 'interface') {
             var point = this.paper.clientToLocalPoint(evt.clientX, evt.clientY);
             this.classManager.createInterface(point.x, point.y);
+        }
+
+        // Clic en el vacío con una herramienta de relación a medias: se cancela
+        // y se vuelve a "Seleccionar", así nunca queda el lienzo trabado.
+        if (this.selectedTool !== 'select' && this.selectedTool !== 'class' && this.selectedTool !== 'interface') {
+            this.relationshipManager.hideRelationshipHelp();
+            this.selectTool('select');
         }
 
         // Deseleccionar elemento

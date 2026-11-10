@@ -2441,20 +2441,25 @@
 }
 
 /* El Tutor (support-chat.css) se acomoda al pie del riel en el editor, en vez
-   de flotar encima del panel del equipo y tapar el botón de enviar. */
-body:has(#editor-rail) .sc-fab {
+   de flotar encima del panel del equipo y tapar el botón de enviar.
+   Con una clase en <body> (diagrams/editor.blade.php), NUNCA con
+   body:has(#editor-rail): :has() sobre body hace que Chrome revise toda la
+   página en cada cambio del DOM, y JointJS cambia el DOM en cada cuadro al
+   mover clases (propias o de otro colaborador). Eso trababa el tiempo real en
+   la web y en el visor del celular, que carga esta misma hoja. */
+body.has-editor-rail .sc-fab {
     right: 14px;
     bottom: 14px;
     width: 44px;
     height: 44px;
 }
 
-body:has(#editor-rail) .sc-fab-face {
+body.has-editor-rail .sc-fab-face {
     width: 24px;
     height: 24px;
 }
 
-body:has(#editor-rail) .sc-panel {
+body.has-editor-rail .sc-panel {
     right: 84px;
     bottom: 14px;
 }

@@ -97,7 +97,7 @@ export class DiagramRelationshipManager {
         if (!this.associativeClassSelected) {
             if (isLink) {
                 this.editor.collaborationManager?.showLockConflictNotification(
-                    'Primero elegí la clase asociativa (un rectángulo), no una relación.'
+                    'Primero elegí una clase (un rectángulo), no una relación.'
                 );
                 return;
             }
@@ -108,9 +108,12 @@ export class DiagramRelationshipManager {
         }
 
         if (!isLink) {
-            this.editor.collaborationManager?.showLockConflictNotification(
-                'Ahora hacé click sobre la relación (línea) a la que se une la clase asociativa.'
-            );
+            // Flujo principal: dos clases → se crea la asociación (sin flechas
+            // ni multiplicidades) y, en su punto medio, una clase asociativa
+            // unida con línea punteada.
+            if (cell.id === this.associativeClassSelected.id) return;
+            const first = this.associativeClassSelected;
+            this.createAssociationWithAssociativeClass(first, cell);
             return;
         }
 
@@ -146,6 +149,61 @@ export class DiagramRelationshipManager {
                 relationshipType: 'associationClassLink',
                 config: {}
             }
+        });
+
+        this.finishAssociationClassLinkSelection();
+    }
+
+    /**
+     * Herramienta "Clase asociativa": con las dos clases elegidas crea (o
+     * reutiliza) la asociación entre ellas y cuelga en su medio una clase
+     * asociativa nueva.
+     */
+    createAssociationWithAssociativeClass(classA, classB) {
+        const notify = (msg) => this.editor.collaborationManager?.showLockConflictNotification(msg);
+        const hasAttached = (link) => this.editor.graph.getLinks().some(l =>
+            l.get('relationData')?.type === 'associationClassLink' && l.get('target')?.id === link.id);
+
+        let hostLink = this.editor.graph.getLinks().find(l => {
+            const type = l.get('relationData')?.type;
+            if (!['association', 'aggregation', 'composition'].includes(type)) return false;
+            const s = l.get('source')?.id, t = l.get('target')?.id;
+            return (s === classA.id && t === classB.id) || (s === classB.id && t === classA.id);
+        });
+
+        if (hostLink && hasAttached(hostLink)) {
+            notify('Esa relación ya tiene una clase asociativa conectada.');
+            this.finishAssociationClassLinkSelection();
+            return;
+        }
+
+        if (!hostLink) {
+            const config = {
+                sourceMultiplicity: '', targetMultiplicity: '', name: '',
+                sourceAnchor: 'auto', targetAnchor: 'auto', hideArrow: true,
+            };
+            hostLink = this.createRelationshipFromConfig('association', classA, classB, config);
+            if (!hostLink) { this.finishAssociationClassLinkSelection(); return; }
+            this.editor.webSocketManager?.broadcastDiagramUpdate({
+                type: 'relationship_created',
+                data: { sourceId: classA.id, targetId: classB.id, relationshipType: 'association', config },
+            });
+        }
+
+        // Clase nueva debajo (o al costado) del punto medio de la asociación.
+        const a = classA.getBBox(), b = classB.getBBox();
+        const mid = { x: (a.x + a.width / 2 + b.x + b.width / 2) / 2, y: (a.y + a.height / 2 + b.y + b.height / 2) / 2 };
+        const horizontal = Math.abs(a.x - b.x) >= Math.abs(a.y - b.y);
+        const w = 220, h = 140;
+        const pos = horizontal
+            ? { x: mid.x - w / 2, y: Math.max(a.y + a.height, b.y + b.height) + 70 }
+            : { x: Math.max(a.x + a.width, b.x + b.width) + 70, y: mid.y - h / 2 };
+
+        const classEl = this.editor.classManager.createClassImproved(pos.x, pos.y);
+        this.createRelationshipFromConfig('associationClassLink', classEl, hostLink, {});
+        this.editor.webSocketManager?.broadcastDiagramUpdate({
+            type: 'relationship_created',
+            data: { sourceId: classEl.id, targetId: hostLink.id, relationshipType: 'associationClassLink', config: {} },
         });
 
         this.finishAssociationClassLinkSelection();
@@ -289,8 +347,12 @@ export class DiagramRelationshipManager {
             'inheritance': '△ Herencia: "es un" (especialización)',
             'realization': '⇢▷ Realización: implementa una interfaz',
             'dependency': '⇢ Dependencia: usa a otra clase (no permanente)',
-            'associationClassLink': '┅ Clase asociativa: elegí la clase, después la relación a la que se une'
+            'associationClassLink': '┅ Clase asociativa: elegí las dos clases a asociar'
         };
+
+        // Un solo tooltip a la vez (si no, se apilan y hideRelationshipHelp
+        // solo quita el primero).
+        document.querySelectorAll('#relationship-tooltip').forEach(t => t.remove());
 
         // Crear tooltip temporal
         const tooltip = document.createElement('div');
@@ -309,15 +371,14 @@ export class DiagramRelationshipManager {
             font-family: var(--uml-font-sans);
             font-size: 13px;
         `;
-        tooltip.textContent = helpText[toolType] + ' — selecciona la segunda clase';
+        tooltip.textContent = toolType === 'associationClassLink'
+            ? helpText[toolType]
+            : helpText[toolType] + ' — selecciona la segunda clase';
         document.body.appendChild(tooltip);
     }
 
     hideRelationshipHelp() {
-        const tooltip = document.getElementById('relationship-tooltip');
-        if (tooltip) {
-            tooltip.remove();
-        }
+        document.querySelectorAll('#relationship-tooltip').forEach(t => t.remove());
     }
 
     createRelationshipImproved(source, target) {

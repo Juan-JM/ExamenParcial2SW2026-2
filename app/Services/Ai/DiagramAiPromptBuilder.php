@@ -137,7 +137,25 @@ Analiza esta imagen de un diagrama UML y extrae la información de clases y rela
 INSTRUCCIONES:
 1. Identifica todas las clases/interfaces UML visibles en la imagen.
 2. Para cada una, extrae: nombre, atributos y métodos (formato "+ nombre: Tipo" / "+ nombre(): Tipo").
-3. Identifica las relaciones entre clases (herencia, composición, agregación, asociación, etc.).
+3. Identifica las relaciones entre clases. Clasifícalas SOLO por lo que se
+   dibuja en los extremos de la línea — NO por el nombre de las clases:
+   - Línea continua SIN ningún símbolo en los extremos (solo texto como
+     multiplicidades "1", "0..*" o un nombre como "pertenece") = "association".
+     ESTE ES EL CASO MÁS COMÚN, úsalo por defecto ante la duda.
+   - "inheritance" SOLO si en un extremo hay un TRIÁNGULO hueco (flecha de
+     herencia) apuntando a la clase padre. Sin triángulo, NO es herencia.
+   - "realization": triángulo hueco con línea punteada. "dependency": flecha
+     abierta con línea punteada.
+   - "composition": rombo RELLENO (negro). "aggregation": rombo HUECO.
+   - Una línea punteada sin flecha que sale de una clase y termina en MEDIO
+     de otra línea es una clase asociativa (ver más abajo), NO herencia.
+   - "from" es la clase de un extremo y "to" la del otro. Si ves
+     multiplicidades junto a cada extremo, "sourceMultiplicity" es la que está
+     pegada a la clase "from" y "targetMultiplicity" la pegada a la clase "to".
+     Copia el texto de la etiqueta de la línea (ej. "pertenece") en "name".
+     Si junto a la línea NO está escrita una multiplicidad, déjala como ""
+     (cadena vacía): no inventes "*" ni "1". Revisa CADA línea de la imagen y
+     devuelve una relación por cada una, sin omitir ninguna.
 4. Si no puedes identificar algo con claridad, omítelo — no inventes datos.
 5. Para cada clase, indica su posición aproximada en una GRILLA imaginaria
    sobre la imagen, para que el lienzo termine con un layout parecido al
@@ -171,6 +189,11 @@ Cuando la veas en la imagen:
   `{ "type": "associationClassLink", "from": "NombreClaseAsociativa", "to": "NombreClaseA", "viaTargetClass": "NombreClaseB" }`
   — "to" y "viaTargetClass" son las dos clases de la asociación M:N de arriba
   (en cualquier orden, tienen que coincidir con esa entrada "association").
+- Una línea continua entre dos clases que NO tiene multiplicidades ni nombre
+  pero a la que llega una línea punteada desde otra clase ES esa asociación
+  M:N: declárala igual como "association" con "*" y "*".
+- La clase asociativa NO tiene ninguna otra relación aparte de ese link: no le
+  inventes herencia ni asociaciones hacia las dos clases.
 - No hace falta ninguna nota especial en "notes" para esto — ya no es una
   conversión/aproximación, es la notación real.
 
@@ -207,14 +230,14 @@ repite):
     }
   ],
   "relationships": [
-    { "type": "inheritance", "from": "ClaseHija", "to": "ClasePadre" },
-    { "type": "association", "from": "Clase1", "to": "Clase2", "sourceMultiplicity": "1", "targetMultiplicity": "*" },
-    { "type": "associationClassLink", "from": "DetalleX", "to": "Clase1", "viaTargetClass": "Clase2" }
+    { "type": "association", "from": "Clase1", "to": "Clase2", "sourceMultiplicity": "1", "targetMultiplicity": "0..*", "name": "pertenece" },
+    { "type": "association", "from": "Clase2", "to": "Clase3", "sourceMultiplicity": "*", "targetMultiplicity": "*" },
+    { "type": "associationClassLink", "from": "DetalleX", "to": "Clase2", "viaTargetClass": "Clase3" }
   ],
   "notes": []
 }
 
-Tipos de relación válidos: "inheritance", "composition", "aggregation", "association", "realization", "dependency", "associationClassLink" (este último solo para conectar una clase asociativa a la asociación M:N que ya declaraste aparte, ver arriba).
+Usa "inheritance" únicamente si ves el triángulo hueco. Tipos de relación válidos: "inheritance", "composition", "aggregation", "association", "realization", "dependency", "associationClassLink" (este último solo para conectar una clase asociativa a la asociación M:N que ya declaraste aparte, ver arriba).
 Visibilidades: "+" (public), "-" (private), "#" (protected).
 "notes" es opcional — array de avisos en español sobre interpretaciones que hiciste; déjalo vacío si no aplica.
 Si la imagen no contiene un diagrama UML reconocible, devuelve { "classes": [], "relationships": [], "notes": [] }.

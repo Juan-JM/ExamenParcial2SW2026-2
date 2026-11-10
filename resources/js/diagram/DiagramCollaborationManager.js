@@ -120,6 +120,7 @@ export class DiagramCollaborationManager {
     // ==================== APLICACIÓN DE CAMBIOS REMOTOS ====================
 
     applyRemoteUpdate(event) {
+        this.lastRemoteActivityAt = Date.now();
         this.updateQueue.push(event);
 
         if (!this.isProcessingUpdates) {
@@ -296,6 +297,9 @@ export class DiagramCollaborationManager {
     }
 
     async applyElementMoved(data) {
+        this.lastRemoteActivityAt = Date.now();
+        // La posición final manda: se corta el deslizamiento en vivo de ese elemento.
+        this._liveTargets?.delete(data.elementId);
         const element = this.editor.graph.getCell(data.elementId);
         if (element && data.position) {
             element.position(data.position.x, data.position.y);
@@ -304,26 +308,62 @@ export class DiagramCollaborationManager {
 
     /**
      * Posición en vivo mientras otro colaborador arrastra un elemento
-     * (llega por whisper, fuera de la cola de actualizaciones fiables).
-     * Se agrega una transición CSS corta para que se vea como un
-     * desplazamiento fluido entre mensajes en vez de saltos discretos —
-     * la transición se limpia sola si el arrastre termina o se corta.
+     * (llega por whisper cada ~40 ms, fuera de la cola de actualizaciones fiables).
+     *
+     * Cada mensaje es un DESTINO: un bucle de requestAnimationFrame desliza el
+     * elemento hacia él moviendo el modelo de JointJS en cada cuadro, así las
+     * relaciones se recalculan junto con la caja. Antes:
+     * - se animaba solo la caja con `transition: transform 80ms` y las líneas
+     *   saltaban directo al final (se despegaban de la clase);
+     * - o se saltaba de golpe cada 40 ms (25 saltos por segundo, las líneas
+     *   quedaban quietas un instante entre mensaje y mensaje).
+     * Sin transiciones CSS en los elementos del lienzo.
      */
     applyElementMovedLive(elementId, position) {
-        const element = this.editor.graph.getCell(elementId);
-        if (!element || !position) return;
+        if (!position) return;
+        this.lastRemoteActivityAt = Date.now();
 
-        const view = this.editor.paper.findViewByModel(element);
-        if (view?.el) {
-            view.el.style.transition = 'transform 80ms linear';
-            clearTimeout(this._liveMoveTransitionTimeouts?.get(elementId));
-            if (!this._liveMoveTransitionTimeouts) this._liveMoveTransitionTimeouts = new Map();
-            this._liveMoveTransitionTimeouts.set(elementId, setTimeout(() => {
-                if (view.el) view.el.style.transition = '';
-            }, 300));
+        if (!this._liveTargets) this._liveTargets = new Map();
+        this._liveTargets.set(elementId, { x: position.x, y: position.y });
+        if (!this._liveFrame) {
+            this._liveLastTick = performance.now();
+            this._liveFrame = requestAnimationFrame((t) => this._stepLiveMoves(t));
         }
+    }
 
-        element.position(position.x, position.y);
+    _stepLiveMoves(now) {
+        this._liveFrame = 0;
+        // Fracción del camino que se recorre por cuadro, independiente de los
+        // FPS: alcanza el destino en ~70 ms, menos que el intervalo entre mensajes.
+        const dt = Math.min(64, now - (this._liveLastTick || now));
+        this._liveLastTick = now;
+        const k = 1 - Math.exp(-dt / 25);
+
+        this._liveTargets.forEach((target, id) => {
+            const element = this.editor.graph.getCell(id);
+            if (!element) {
+                this._liveTargets.delete(id);
+                return;
+            }
+            const current = element.position();
+            const dx = target.x - current.x;
+            const dy = target.y - current.y;
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+                element.position(target.x, target.y);
+                this._liveTargets.delete(id);
+                return;
+            }
+            element.position(current.x + dx * k, current.y + dy * k);
+        });
+
+        if (this._liveTargets.size > 0) {
+            this._liveFrame = requestAnimationFrame((t) => this._stepLiveMoves(t));
+        }
+    }
+
+    /** Hubo cambios en vivo de otro colaborador hace menos de `ms`. */
+    hadRecentRemoteActivity(ms) {
+        return !!this.lastRemoteActivityAt && Date.now() - this.lastRemoteActivityAt < ms;
     }
 
     async applyElementDeletion(data) {

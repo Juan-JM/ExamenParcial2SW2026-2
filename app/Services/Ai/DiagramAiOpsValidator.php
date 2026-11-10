@@ -154,7 +154,7 @@ class DiagramAiOpsValidator
                 'to' => (string) $rel['to'],
                 'sourceMultiplicity' => (string) ($rel['sourceMultiplicity'] ?? ''),
                 'targetMultiplicity' => (string) ($rel['targetMultiplicity'] ?? ''),
-                'label' => (string) ($rel['label'] ?? ''),
+                'label' => (string) ($rel['label'] ?? $rel['name'] ?? ''),
             ];
         }
 

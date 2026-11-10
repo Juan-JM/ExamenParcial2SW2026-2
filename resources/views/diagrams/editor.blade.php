@@ -27,7 +27,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="font-sans antialiased bg-gray-100">
+<body class="font-sans antialiased bg-gray-100 has-editor-rail">
     <div id="app" class="h-screen flex flex-col">
         {{-- La barra superior (volver, título, guardado, edición, archivo,
              compartir y usuario) es UNA sola y vive en el componente Livewire
