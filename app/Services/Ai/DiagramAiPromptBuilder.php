@@ -128,6 +128,21 @@ Visibilidades válidas: "public", "private", "protected", "package".
 PROMPT;
     }
 
+    /** Pregunta de seguimiento: ¿esta clase suelta es una clase asociativa? (ver DiagramAiController::completeAssociativeClasses()). */
+    public function buildAssociativeClassCheckPrompt(string $className, array $classNames): string
+    {
+        $list = implode(', ', array_map(fn ($n) => "\"{$n}\"", $classNames));
+
+        return <<<PROMPT
+En esta imagen de un diagrama UML hay una clase llamada "{$className}" que no tiene líneas continuas hacia otras clases.
+Normalmente es una CLASE ASOCIATIVA: está unida por una línea PUNTEADA (discontinua) al MEDIO de una línea continua que une otras dos clases.
+Clases del diagrama: {$list}.
+Mira dónde termina la línea punteada de "{$className}" y di cuáles son las dos clases que une la línea continua a la que se cuelga.
+Responde ÚNICAMENTE con este JSON: {"isAssociative": true, "classA": "NombreClase", "classB": "NombreClase"}
+Si no hay ninguna línea punteada, responde {"isAssociative": false, "classA": "", "classB": ""}.
+PROMPT;
+    }
+
     /** Prompt para importar un diagrama UML a partir de una foto/captura (ver DiagramAiController::importImage()). */
     public function buildImageImportPrompt(): string
     {
@@ -183,15 +198,15 @@ Cuando la veas en la imagen:
   propios atributos tal cual los veas.
 - La relación M:N original SÍ va en "relationships", como una entrada normal
   tipo "association" entre las dos clases originales, con sourceMultiplicity
-  "*" y targetMultiplicity "*" (la asociación de fondo existe igual, la clase
-  solo se le "cuelga" con una línea aparte).
+  "" y targetMultiplicity "" (sin números: no se dibujan; la asociación de fondo
+  existe igual, la clase solo se le "cuelga" con una línea aparte).
 - Además, agrega UNA entrada extra en "relationships" con
   `{ "type": "associationClassLink", "from": "NombreClaseAsociativa", "to": "NombreClaseA", "viaTargetClass": "NombreClaseB" }`
   — "to" y "viaTargetClass" son las dos clases de la asociación M:N de arriba
   (en cualquier orden, tienen que coincidir con esa entrada "association").
 - Una línea continua entre dos clases que NO tiene multiplicidades ni nombre
   pero a la que llega una línea punteada desde otra clase ES esa asociación
-  M:N: declárala igual como "association" con "*" y "*".
+  M:N: declárala igual como "association" con multiplicidades "" (vacías).
 - La clase asociativa NO tiene ninguna otra relación aparte de ese link: no le
   inventes herencia ni asociaciones hacia las dos clases.
 - No hace falta ninguna nota especial en "notes" para esto — ya no es una
@@ -231,7 +246,7 @@ repite):
   ],
   "relationships": [
     { "type": "association", "from": "Clase1", "to": "Clase2", "sourceMultiplicity": "1", "targetMultiplicity": "0..*", "name": "pertenece" },
-    { "type": "association", "from": "Clase2", "to": "Clase3", "sourceMultiplicity": "*", "targetMultiplicity": "*" },
+    { "type": "association", "from": "Clase2", "to": "Clase3", "sourceMultiplicity": "", "targetMultiplicity": "" },
     { "type": "associationClassLink", "from": "DetalleX", "to": "Clase2", "viaTargetClass": "Clase3" }
   ],
   "notes": []

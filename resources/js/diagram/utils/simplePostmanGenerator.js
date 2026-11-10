@@ -1165,7 +1165,7 @@ export class SimplePostmanGenerator {
     }
 
     camelToSnakeCase(str) {
-        return str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+        return str.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/_{2,}/g, '_').replace(/^_/, '');
     }
 
     sanitizeProjectName(name) {

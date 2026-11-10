@@ -158,9 +158,53 @@ class DiagramAiOpsValidator
             ];
         }
 
+        $relationships = $this->dedupeAssociationClassLinks($relationships);
+
         $notes = array_values(array_filter((array) ($data['notes'] ?? []), 'is_string'));
 
         return ['classes' => $classes, 'relationships' => $relationships, 'notes' => $notes];
+    }
+
+    /**
+     * Los modelos chicos a veces repiten la misma clase asociativa con los
+     * roles cruzados (detalle→A/B y B→A/detalle). Gana el primer enlace; se
+     * descarta el que use como "asociativa" a una clase que ya es extremo de
+     * otro enlace, o que repita el mismo trío de clases.
+     */
+    private function dedupeAssociationClassLinks(array $relationships): array
+    {
+        $norm = fn (string $n) => mb_strtolower(trim($n));
+        $assoc = [];
+        $hosts = [];
+        $triples = [];
+        $out = [];
+
+        foreach ($relationships as $rel) {
+            if ($rel['type'] !== 'associationClassLink') {
+                $out[] = $rel;
+                continue;
+            }
+
+            $from = $norm($rel['from']);
+            $to = $norm($rel['to']);
+            $via = $norm($rel['viaTargetClass']);
+            $triple = [$from, $to, $via];
+            sort($triple);
+            $key = implode('|', $triple);
+
+            if ($from === $to || $from === $via || $to === $via
+                || isset($triples[$key]) || isset($hosts[$from]) || isset($assoc[$to]) || isset($assoc[$via])) {
+                continue;
+            }
+
+            $triples[$key] = true;
+            $assoc[$from] = true;
+            $hosts[$to] = true;
+            $hosts[$via] = true;
+            $out[] = $rel;
+        }
+
+        return $out;
     }
 
     private function validateOp(mixed $op): ?array

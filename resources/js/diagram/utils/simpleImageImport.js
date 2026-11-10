@@ -468,7 +468,9 @@ export class SimpleImageImporter {
                     targetMultiplicity: relData.targetMultiplicity || '',
                     relationName: relData.label || '',
                     sourceAnchor: 'auto',
-                    targetAnchor: 'auto'
+                    targetAnchor: 'auto',
+                    // En las imágenes las asociaciones son líneas simples, sin flecha.
+                    hideArrow: relationshipType === 'association'
                 };
 
                 this.relationshipManager.createRelationshipFromConfig(
@@ -509,7 +511,7 @@ export class SimpleImageImporter {
                 if (!hostLinkInfo) {
                     // La imagen muestra la asociación M:N (línea sin símbolos) pero el
                     // modelo no la listó: se crea, es lo que la clase asociativa necesita.
-                    const hostConfig = { sourceMultiplicity: '*', targetMultiplicity: '*', relationName: '', sourceAnchor: 'auto', targetAnchor: 'auto' };
+                    const hostConfig = { sourceMultiplicity: '', targetMultiplicity: '', relationName: '', sourceAnchor: 'auto', targetAnchor: 'auto', hideArrow: true };
                     const hostLink = this.relationshipManager.createRelationshipFromConfig('association', hostA, hostB, hostConfig);
                     if (!hostLink) {
                         console.warn(`⚠️ Clase asociativa ignorada: no hay asociación entre "${relData.to}" y "${relData.viaTargetClass}"`);
