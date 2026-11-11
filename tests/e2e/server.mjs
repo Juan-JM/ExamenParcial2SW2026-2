@@ -13,6 +13,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LLM_PORT = 11999;
 // Puerto propio para no chocar con el Reverb de `composer run dev`.
 const REVERB_PORT = 8081;
+// Puerto de la app: E2E_PORT si 8765 está ocupado (p. ej. por voice-service).
+const APP_PORT = process.env.E2E_PORT || '8765';
 
 /** Copia el .env, reemplazando lo que no debe usarse en la prueba. */
 function writeEnvironment() {
@@ -132,7 +134,7 @@ artisan('migrate:fresh', '--force');
 artisan('db:seed', '--class=E2eSeeder', '--force');
 
 const children = [
-    ['serve', '--port=8765'],
+    ['serve', `--port=${APP_PORT}`],
     ['reverb:start', `--port=${REVERB_PORT}`],
     ['queue:listen', '--tries=1', '--timeout=240', '--sleep=1'],
 ].map((args) => spawn('php', ['artisan', ...args], { cwd: root, env, stdio: ['ignore', 'inherit', 'inherit'] }));

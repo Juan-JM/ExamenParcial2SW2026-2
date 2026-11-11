@@ -142,7 +142,7 @@ export class DiagramWebSocketManager {
         // private/presence — a diferencia de Pusher, no depende de
         // habilitar "Client Events" a mano en un dashboard externo.
         this.channel.listenForWhisper('element-move', (payload) => {
-            if (payload.userId === this.userId) return;
+            if (this.isOwnEcho(payload.userId)) return;
             this.editor.collaborationManager?.applyElementMovedLive(payload.elementId, payload.position);
         });
 
@@ -164,8 +164,21 @@ export class DiagramWebSocketManager {
 
     // ==================== MANEJADORES DE EVENTOS ====================
 
+    /**
+     * ¿Es un cambio que hice yo mismo en ESTA pantalla? El editor descarta lo
+     * suyo (ya lo tiene dibujado). La vista "Ver" (y la app móvil, que la
+     * embebe) nunca edita: todo lo que llega es de otra pantalla, aunque sea
+     * del mismo usuario (el dueño editando en la web y mirando en el
+     * celular). Antes "Ver" lo descartaba y quedaba quieta hasta el guardado.
+     */
+    isOwnEcho(userId) {
+        return !this.editor.viewerMode && userId === this.userId;
+    }
+
     handleDiagramUpdate(event) {
-        if (event.userId === this.userId) {
+        // La selección propia no se resalta ni siquiera en "Ver".
+        if (event.updateType === 'element_selected' && event.userId === this.userId) return;
+        if (this.isOwnEcho(event.userId)) {
             return; // Ignorar nuestros propios cambios
         }
 

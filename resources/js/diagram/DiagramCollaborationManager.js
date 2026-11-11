@@ -327,12 +327,33 @@ export class DiagramCollaborationManager {
         this._liveTargets.set(elementId, { x: position.x, y: position.y });
         if (!this._liveFrame) {
             this._liveLastTick = performance.now();
-            this._liveFrame = requestAnimationFrame((t) => this._stepLiveMoves(t));
+            this._scheduleLiveStep();
         }
     }
 
+    /**
+     * Próximo paso del deslizamiento: en el próximo cuadro o, si el navegador
+     * no está dibujando cuadros (pestaña en segundo plano, WebView del celular
+     * en ciertos estados), por temporizador. Sin este respaldo, con
+     * requestAnimationFrame pausado los movimientos no se aplicaban nunca y la
+     * vista "Ver" quedaba quieta.
+     */
+    _scheduleLiveStep() {
+        let done = false;
+        const run = () => {
+            if (done) return;
+            done = true;
+            cancelAnimationFrame(rafId);
+            clearTimeout(timerId);
+            this._stepLiveMoves(performance.now());
+        };
+        const rafId = requestAnimationFrame(run);
+        const timerId = setTimeout(run, 34);
+        this._liveFrame = true;
+    }
+
     _stepLiveMoves(now) {
-        this._liveFrame = 0;
+        this._liveFrame = false;
         // Fracción del camino que se recorre por cuadro, independiente de los
         // FPS: alcanza el destino en ~70 ms, menos que el intervalo entre mensajes.
         const dt = Math.min(64, now - (this._liveLastTick || now));
@@ -356,9 +377,7 @@ export class DiagramCollaborationManager {
             element.position(current.x + dx * k, current.y + dy * k);
         });
 
-        if (this._liveTargets.size > 0) {
-            this._liveFrame = requestAnimationFrame((t) => this._stepLiveMoves(t));
-        }
+        if (this._liveTargets.size > 0) this._scheduleLiveStep();
     }
 
     /** Hubo cambios en vivo de otro colaborador hace menos de `ms`. */

@@ -27,6 +27,7 @@ export class DiagramClassManager {
         );
 
         this.makeElementEditable(element);
+        this.broadcastCreated(element);
         this.editor.updateCanvasInfo();
         this.editor.selectTool('select');
 
@@ -47,12 +48,37 @@ export class DiagramClassManager {
         );
 
         this.makeElementEditable(element);
+        this.broadcastCreated(element);
         this.editor.updateCanvasInfo();
         this.editor.selectTool('select');
 
         this.editor.selectElement(element);
 
         return element;
+    }
+
+    /**
+     * Avisa en vivo que se creó una clase/interfaz (como 'class_updated' con
+     * posición: el receptor la crea si no la tiene). Antes solo viajaba al
+     * editarla, así que los demás —y la vista "Ver"/celular— no la veían hasta
+     * el próximo guardado.
+     */
+    broadcastCreated(element) {
+        const umlData = element.get('umlData') || {};
+        this.editor.webSocketManager?.broadcastDiagramUpdate({
+            type: 'class_updated',
+            data: {
+                elementId: element.id,
+                umlData: {
+                    className: umlData.className,
+                    attributes: umlData.attributes || [],
+                    methods: umlData.methods || [],
+                    type: umlData.type,
+                    uml25: umlData.uml25 || null,
+                },
+                position: element.position(),
+            },
+        });
     }
 
     editClassImproved(element) {
