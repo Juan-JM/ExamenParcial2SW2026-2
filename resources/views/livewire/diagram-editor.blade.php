@@ -383,6 +383,13 @@
                 </span>
                 <span class="editor-rail-label" id="editor-rail-agent-name">Nova</span>
             </button>
+            {{-- Conversación por voz con Nova (módulo aparte del chat; lo maneja NovaLive.js). --}}
+            <button type="button" class="editor-rail-btn" id="nova-live-launch" aria-pressed="false" title="Hablar con Nova por voz, como en una llamada">
+                <span class="editor-rail-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>
+                </span>
+                <span class="editor-rail-label">Voz</span>
+            </button>
             <button type="button" class="editor-rail-btn" id="dock-tab-activity" data-dock="activity" aria-pressed="false" title="Actividad: quién cambió qué, con búsqueda">
                 <span class="editor-rail-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
@@ -526,6 +533,12 @@
             closeSessionUrl: @json($diagramId ? route('diagrams.agent.close-session', $diagramId) : null),
             sessionsBaseUrl: @json($diagramId ? url('/diagrams/'.$diagramId.'/agent/sessions') : null),
             importImageUrl: @json($diagramId ? route('diagrams.ai.import-image', $diagramId) : null),
+        };
+        // "Nova en vivo": conversación por voz (documentacion/12-nova-en-vivo.md)
+        window.liveAssistant = {
+            stateUrl: @json($diagramId ? route('diagrams.live.state', $diagramId) : null),
+            utteranceUrl: @json($diagramId ? route('diagrams.live.utterance', $diagramId) : null),
+            doneUrl: @json($diagramId ? route('diagrams.live.done', $diagramId) : null),
         };
         // NUEVO: Datos de sesión colaborativa
         // IMPORTANTE: nunca condicionar estas asignaciones con una directiva

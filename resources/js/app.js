@@ -1,6 +1,7 @@
 // resources/js/app.js
 import '../css/uml-editor.css';
 import '../css/support-chat.css';
+import '../css/nova-live.css';
 import './bootstrap';
 
 // Solo importar el editor, SIN shapes personalizadas

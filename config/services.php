@@ -64,6 +64,18 @@ return [
             'turn_budget_seconds' => env('AI_AGENT_TURN_BUDGET_SECONDS', 150),
         ],
 
+        // "Nova en vivo": conversación por voz (ver documentacion/12-nova-en-vivo.md).
+        'live' => [
+            // Servicio local de voz (Whisper + Piper). Lo llama el navegador directo,
+            // no PHP: `artisan serve` atiende de a una petición y transcribir congelaría la app.
+            // Desde otra máquina de la red, el host se reemplaza por el de la página.
+            'voice_service_url' => env('VOICE_SERVICE_URL', 'http://127.0.0.1:8770'),
+            // Tras hablarle a Nova, esta persona puede seguir sin repetir el nombre este tiempo.
+            'conversation_window_seconds' => env('LIVE_CONVERSATION_WINDOW_SECONDS', 40),
+            // La charla del equipo que no es para Nova se guarda este tiempo, para darle contexto.
+            'ambient_ttl_minutes' => env('LIVE_AMBIENT_TTL_MINUTES', 180),
+        ],
+
         // Servidor local con API compatible con OpenAI. LM Studio por defecto;
         // para Ollama: http://127.0.0.1:11434/v1
         'local' => [

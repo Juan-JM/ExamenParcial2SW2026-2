@@ -432,6 +432,16 @@ export class AIChatController {
     }
 
     onMessage(message) {
+        // La charla de fondo de "Nova en vivo" no es del chat clásico; las frases
+        // fundidas con otra posterior solo se quitan.
+        if (message.source === 'ambient') return;
+        if (message.superseded) {
+            this.messages.delete(message.id);
+            this.clearAwaiting(message.id);
+            this.panel?.updateMessage(message);
+            return;
+        }
+
         if (this.viewingSessionId) this.showSession('current');
 
         const isNew = !this.messages.has(message.id);
@@ -465,6 +475,8 @@ export class AIChatController {
     /** Se lee una vez: si hay operaciones en curso, se espera al resumen de lo aplicado. */
     speakIfReady(message, hasPendingOps) {
         if (message.role !== 'assistant' || hasPendingOps || this.spoken.has(message.id)) return;
+        // Las respuestas a pedidos por voz de "Nova en vivo" las dice ese módulo, con su propia voz.
+        if (this.messages.get(message.replyTo)?.source === 'live') return;
 
         const text = [message.text, message.opsSummary].filter(Boolean).join('. ');
         if (!text) return;

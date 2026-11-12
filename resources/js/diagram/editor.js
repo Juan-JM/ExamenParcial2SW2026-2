@@ -18,6 +18,7 @@ import { SimpleSQLGenerator } from './utils/simpleSQLGenerator.js';
 import { SimpleJavaGenerator } from './utils/simpleJavaGenerator.js';
 import { SimplePostmanGenerator } from './utils/simplePostmanGenerator.js';
 import { AIChatController } from './modules-ai/ai-chat/AIChatController.js';
+import { NovaLive } from './modules-ai/live/NovaLive.js';
 import { DiagramUndoManager } from './undo/DiagramUndoManager.js';
 import { icon } from './utils/uiIcons.js';
 import { openModal, confirmDialog } from './utils/modal.js';
@@ -104,6 +105,7 @@ class UMLDiagramEditor {
         this.createPaper();
         if (!this.viewerMode) {
             this.aiChat = new AIChatController(this);
+            this.novaLive = new NovaLive(this, this.aiChat);
             this.xmiImporter = new SimpleXMIImporter(this);
             this.imageImporter = new SimpleImageImporter(this);
             this.setupEventListeners();

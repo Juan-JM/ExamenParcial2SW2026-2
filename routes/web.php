@@ -139,7 +139,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/{diagram}/agent/search', [DiagramAgentController::class, 'search'])->name('agent.search');
         Route::post('/{diagram}/agent/session/close', [DiagramAgentController::class, 'closeSession'])->name('agent.close-session');
         Route::get('/{diagram}/agent/sessions/{session}/messages', [DiagramAgentController::class, 'sessionMessages'])->name('agent.session-messages');
-        Route::post('/{diagram}/ai/import-image', [DiagramAiController::class, 'importImage'])->name('ai.import-image');
+        // "Nova en vivo": conversación por voz (ver documentacion/12-nova-en-vivo.md)
+        Route::get('/{diagram}/live/state', [\App\Http\Controllers\LiveController::class, 'state'])->name('live.state');
+        Route::post('/{diagram}/live/utterance', [\App\Http\Controllers\LiveController::class, 'utterance'])->name('live.utterance');
+        Route::post('/{diagram}/live/done', [\App\Http\Controllers\LiveController::class, 'done'])->name('live.done');
+        Route::post('/{diagram}/ai/import-image',[DiagramAiController::class, 'importImage'])->name('ai.import-image');
 
         // Cambiar visibilidad del diagrama
         Route::post('/{diagram}/visibility', function (\App\Models\Diagram $diagram, \Illuminate\Http\Request $request) {

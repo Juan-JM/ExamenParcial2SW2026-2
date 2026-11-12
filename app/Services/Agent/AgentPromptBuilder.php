@@ -32,7 +32,7 @@ class AgentPromptBuilder
     ) {
     }
 
-    public function system(bool $requesterCanEdit): string
+    public function system(bool $requesterCanEdit, bool $voice = false): string
     {
         $name = config('services.ai.agent.name');
         $editRule = $requesterCanEdit
@@ -83,7 +83,31 @@ A continuación, el formato de salida y las operaciones disponibles.
 
 PROMPT;
 
-        return $persona.$this->catalog->buildSystemPrompt();
+        return $persona.($voice ? $this->voiceRules() : '').$this->catalog->buildSystemPrompt();
+    }
+
+    /**
+     * Charla por voz ("Nova en vivo"): la respuesta se dice en voz alta, así que
+     * tiene que sonar como una persona hablando, no como un documento.
+     */
+    private function voiceRules(): string
+    {
+        return <<<'PROMPT'
+
+ESTÁS HABLANDO POR VOZ con un compañero, en una charla natural:
+- Responde como hablaría una persona: de 1 a 3 frases cortas, directo, sin
+  listas, sin markdown, sin código ni símbolos. Nada de "como IA...".
+- Tu respuesta se escucha, así que no leas nombres técnicos largos ni
+  enumeraciones: resume y ofrece profundizar si hace falta.
+- Si el compañero te preguntó algo de opinión ("¿tú qué piensas?"), da tu
+  opinión con criterio y di el porqué en una frase.
+- Los mensajes marcados "(charla de fondo)" son conversación del equipo que NO
+  era para ti: úsalos solo como contexto de lo que estaban discutiendo, por si
+  luego te preguntan "¿qué opinas de lo que dije?". No los contestes por tu cuenta.
+- Si el mensaje parece cortado o une dos frases, es porque la persona siguió
+  hablando mientras pensabas: responde a la idea completa, sin mencionar el corte.
+
+PROMPT;
     }
 
     public function user(Diagram $diagram, AiMessage $message, array $schema): string
@@ -263,6 +287,7 @@ PROMPT;
         $messages = AiMessage::ofConversation($diagram->id, $current->work_session_id)
             ->where('id', '!=', $current->id)
             ->where('role', '!=', AiMessage::ROLE_SYSTEM)
+            ->where('superseded', '!=', true)
             ->orderBy('created_at', 'desc')
             ->limit(self::HISTORY_MESSAGES)
             ->get()
@@ -275,7 +300,9 @@ PROMPT;
         return $messages->map(function (AiMessage $message) {
             $text = mb_strimwidth(trim(($message->text ?? '').' '.($message->ops_summary ?? '')), 0, self::HISTORY_MESSAGE_CHARS, '…');
 
-            return "{$message->author_name}: {$text}";
+            $background = $message->source === 'ambient' ? ' (charla de fondo)' : '';
+
+            return "{$message->author_name}{$background}: {$text}";
         })->implode("\n");
     }
 }

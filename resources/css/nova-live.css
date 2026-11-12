@@ -1,0 +1,267 @@
+/* Nova en vivo: conversación por voz (resources/js/diagram/modules-ai/live/).
+   Tarjeta oscura flotante con una esfera de luz; el resto de la app es clara a
+   propósito: esto es "otro lugar", donde se conversa. */
+
+.nova-live {
+    --nl-bg: #0a0d18;
+    --nl-bg-2: #11162a;
+    --nl-line: rgba(148, 163, 255, 0.14);
+    --nl-text: #e8ecff;
+    --nl-dim: #8e97c0;
+    --nl-glow: 210, 100%, 66%;
+
+    position: fixed;
+    right: 88px;
+    bottom: 20px;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    width: 396px;
+    max-height: min(680px, calc(100vh - 96px));
+    color: var(--nl-text);
+    font-family: var(--uml-font-sans, 'Inter', system-ui, sans-serif);
+    background:
+        radial-gradient(120% 60% at 50% -10%, hsla(var(--nl-glow), 0.22), transparent 60%),
+        linear-gradient(180deg, var(--nl-bg-2), var(--nl-bg) 55%);
+    border: 1px solid var(--nl-line);
+    border-radius: 22px;
+    box-shadow: 0 28px 60px -18px rgba(5, 8, 25, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    transition: opacity 0.22s ease, transform 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.1), width 0.26s ease, max-height 0.26s ease, border-radius 0.26s ease;
+}
+
+.nova-live[hidden] { display: none; }
+.nova-live.is-visible { opacity: 1; transform: none; }
+
+/* El color de la tarjeta sigue lo que hace Nova. */
+.nova-live[data-mode='capturing'] { --nl-glow: 172, 85%, 55%; }
+.nova-live[data-mode='transcribing'], .nova-live[data-mode='thinking'] { --nl-glow: 268, 85%, 66%; }
+.nova-live[data-mode='speaking'] { --nl-glow: 330, 90%, 66%; }
+.nova-live[data-mode='waiting'] { --nl-glow: 38, 92%, 58%; }
+.nova-live[data-mode='off'] { --nl-glow: 220, 15%, 50%; }
+
+/* ---------- Encabezado ---------- */
+
+.nl-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 14px 0 18px;
+}
+
+.nl-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.nl-name { font-weight: 650; letter-spacing: 0.01em; }
+.nl-status { color: var(--nl-dim); }
+.nl-status::before { content: '·'; margin-right: 8px; opacity: 0.6; }
+
+.nl-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: hsl(var(--nl-glow));
+    box-shadow: 0 0 10px hsla(var(--nl-glow), 0.9);
+    animation: nlPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes nlPulse { 50% { opacity: 0.45; transform: scale(0.8); } }
+
+.nl-actions { display: flex; gap: 2px; }
+
+.nl-icon-btn {
+    display: grid; place-items: center;
+    width: 30px; height: 30px;
+    color: var(--nl-dim);
+    background: transparent;
+    border: 0; border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.nl-icon-btn:hover { color: var(--nl-text); background: rgba(255, 255, 255, 0.08); }
+
+/* ---------- Esfera ---------- */
+
+.nl-stage { position: relative; flex-shrink: 0; padding: 0 18px; }
+
+.nl-orb {
+    display: block;
+    width: 100%;
+    height: 224px;
+    margin-top: -4px;
+    cursor: default;
+}
+
+.nl-caption {
+    min-height: 22px;
+    margin: -6px 0 0;
+    padding: 0 6px 4px;
+    font-size: 15px;
+    line-height: 1.4;
+    text-align: center;
+    color: var(--nl-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-wrap: balance;
+    transition: opacity 0.2s;
+}
+.nl-caption[data-who='me'] { color: #b9c3ff; }
+.nl-caption.is-empty { opacity: 0; }
+
+.nl-floor {
+    margin: 6px auto 0;
+    width: fit-content;
+    max-width: 100%;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #ffd9a0;
+    background: rgba(255, 170, 60, 0.12);
+    border: 1px solid rgba(255, 190, 90, 0.28);
+    border-radius: 999px;
+}
+
+.nl-warn {
+    margin: 10px 18px 0;
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #ffc9c0;
+    background: rgba(255, 90, 70, 0.1);
+    border: 1px solid rgba(255, 110, 90, 0.28);
+    border-radius: 12px;
+}
+
+/* ---------- Charla ---------- */
+
+.nl-feed {
+    flex: 1 1 auto;
+    min-height: 90px;
+    margin-top: 10px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    border-top: 1px solid var(--nl-line);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 255, 0.25) transparent;
+}
+
+.nl-empty { margin: auto; max-width: 260px; font-size: 12.5px; line-height: 1.5; text-align: center; color: var(--nl-dim); }
+
+.nl-msg { max-width: 88%; padding: 8px 12px; font-size: 13.5px; line-height: 1.45; border-radius: 14px; animation: nlIn 0.2s ease-out; }
+@keyframes nlIn { from { opacity: 0; transform: translateY(6px); } }
+.nl-msg-who { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; color: var(--nl-dim); }
+.nl-msg-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.nl-msg.is-me { align-self: flex-end; background: linear-gradient(135deg, #3b4fd8, #6b3fd4); border-bottom-right-radius: 5px; }
+.nl-msg.is-other { align-self: flex-start; background: rgba(148, 163, 255, 0.12); border-bottom-left-radius: 5px; }
+.nl-msg.is-nova { align-self: flex-start; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--nl-line); border-bottom-left-radius: 5px; }
+.nl-msg.is-nova .nl-msg-who { color: hsl(var(--nl-glow)); }
+.nl-msg.is-ambient { align-self: stretch; max-width: 100%; padding: 2px 8px; font-size: 12px; font-style: italic; color: var(--nl-dim); background: transparent; border-left: 2px solid var(--nl-line); border-radius: 0; }
+.nl-msg.is-ambient .nl-msg-who { display: inline; margin-right: 6px; font-style: normal; }
+.nl-msg.is-ambient .nl-msg-text { display: inline; }
+
+/* ---------- Controles ---------- */
+
+.nl-controls { display: flex; align-items: center; gap: 12px; padding: 12px 16px 6px; }
+
+.nl-mic {
+    flex-shrink: 0;
+    display: grid; place-items: center;
+    width: 54px; height: 54px;
+    color: #fff;
+    background: radial-gradient(circle at 30% 25%, hsla(var(--nl-glow), 1), hsla(var(--nl-glow), 0.55));
+    border: 0; border-radius: 50%;
+    box-shadow: 0 8px 22px -6px hsla(var(--nl-glow), 0.8);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+}
+.nl-mic:hover { transform: scale(1.06); }
+.nl-mic:active { transform: scale(0.96); }
+.nl-mic.is-muted { color: var(--nl-dim); background: rgba(255, 255, 255, 0.08); box-shadow: none; }
+
+.nl-toggles { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+
+.nl-chip {
+    display: flex; align-items: center; gap: 7px;
+    padding: 6px 11px;
+    font: inherit; font-size: 12px;
+    color: var(--nl-dim);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--nl-line); border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nl-chip:hover { color: var(--nl-text); background: rgba(255, 255, 255, 0.09); }
+.nl-chip.is-on { color: var(--nl-text); background: hsla(var(--nl-glow), 0.18); border-color: hsla(var(--nl-glow), 0.5); }
+.nl-select select {
+    flex: 1; min-width: 0;
+    font: inherit; color: inherit;
+    background: transparent; border: 0; outline: 0;
+    cursor: pointer;
+}
+.nl-select select option { color: #111; }
+
+/* ---------- Escribir ---------- */
+
+.nl-compose { display: flex; gap: 8px; padding: 6px 16px 16px; }
+.nl-compose input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px;
+    font: inherit; font-size: 13px;
+    color: var(--nl-text);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--nl-line); border-radius: 999px;
+    outline: 0;
+    transition: border-color 0.15s, background 0.15s;
+}
+.nl-compose input::placeholder { color: var(--nl-dim); }
+.nl-compose input:focus { border-color: hsla(var(--nl-glow), 0.7); background: rgba(255, 255, 255, 0.09); }
+.nl-compose button {
+    display: grid; place-items: center;
+    width: 38px; height: 38px;
+    color: var(--nl-text);
+    background: rgba(255, 255, 255, 0.1);
+    border: 0; border-radius: 50%;
+    cursor: pointer;
+}
+.nl-compose button:hover { background: hsla(var(--nl-glow), 0.5); }
+
+.nl-mic:focus-visible, .nl-chip:focus-visible, .nl-icon-btn:focus-visible, .nl-compose button:focus-visible {
+    outline: 2px solid hsl(var(--nl-glow));
+    outline-offset: 2px;
+}
+
+/* ---------- Minimizada: solo la esfera, sigue escuchando ---------- */
+
+.nova-live.is-mini {
+    width: 84px;
+    max-height: 84px;
+    height: 84px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.nova-live.is-mini .nl-head,
+.nova-live.is-mini .nl-caption,
+.nova-live.is-mini .nl-floor,
+.nova-live.is-mini .nl-warn,
+.nova-live.is-mini .nl-feed,
+.nova-live.is-mini .nl-controls,
+.nova-live.is-mini .nl-compose { display: none; }
+.nova-live.is-mini .nl-stage { padding: 0; }
+.nova-live.is-mini .nl-orb { height: 84px; margin: 0; cursor: pointer; }
+
+@media (max-width: 720px) {
+    .nova-live { right: 8px; left: 8px; width: auto; bottom: 8px; max-height: calc(100vh - 80px); }
+    .nova-live.is-mini { left: auto; width: 84px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nova-live, .nl-msg { transition: none; animation: none; }
+    .nl-dot { animation: none; }
+}
+
+/* Botón del riel mientras la conversación está activa */
+.editor-rail-btn.is-live .editor-rail-icon { color: #fff; background: linear-gradient(135deg, #4f46e5, #c026d3); border-radius: 10px; }
+.editor-rail-btn.is-live .editor-rail-icon svg { animation: nlPulse 1.6s ease-in-out infinite; }

@@ -42,6 +42,7 @@ class AiMessage extends Model
         'prompt',
         'raw_response',
         'error',
+        'superseded',
     ];
 
     /** La conversación de una sesión de trabajo (o la de fuera de sesión, si es null). */
@@ -76,6 +77,7 @@ class AiMessage extends Model
             'opsSummary' => $this->ops_summary,
             'options' => $this->options ?? [],
             'originalCommand' => $this->original_command,
+            'superseded' => (bool) $this->superseded,
             'createdAt' => $this->created_at?->toISOString(),
         ];
     }

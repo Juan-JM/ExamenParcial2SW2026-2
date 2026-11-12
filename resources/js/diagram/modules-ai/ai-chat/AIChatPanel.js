@@ -457,6 +457,11 @@ export class AIChatPanel {
 
     updateMessage(message) {
         const current = this.messagesEl.querySelector(`[data-message-id="${message.id}"]`);
+        // "Nova en vivo" fundió este pedido con uno posterior: ya no va en el chat.
+        if (message.superseded) {
+            current?.remove();
+            return;
+        }
         if (current) {
             current.replaceWith(this.buildBubble(message));
             this.scrollToBottom();

@@ -88,7 +88,10 @@ class DiagramAgentController extends Controller
 
     private function conversation(Diagram $diagram, ?string $sessionId)
     {
+        // La charla de fondo y las frases fundidas de "Nova en vivo" no van al chat clásico.
         return AiMessage::ofConversation($diagram->id, $sessionId)
+            ->where('source', '!=', 'ambient')
+            ->where('superseded', '!=', true)
             ->orderBy('created_at', 'desc')
             ->limit(self::MESSAGES_ON_LOAD)
             ->get(['role', 'author_id', 'author_name', 'text', 'source', 'to_agent', 'reply_to', 'executor_user_id', 'ops', 'ops_status', 'ops_summary', 'options', 'original_command', 'created_at'])
